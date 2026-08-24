@@ -1,0 +1,9 @@
+# Slice 4 diffs CBOM output byte-for-byte, and CI runs on Linux and Windows.
+# Normalise to LF in the repo so a checkout on either OS gives identical bytes.
+* text=auto eol=lf
+
+# Binary fixtures are bytes and must never be touched.
+*.exe binary
+*.dll binary
+*.sys binary
+*.der binary
