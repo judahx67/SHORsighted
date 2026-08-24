@@ -1,0 +1,25 @@
+[importlinter]
+root_package = shorsighted
+
+# Design §1: core.model imports nothing internal; cli sits on top of everything.
+[importlinter:contract:layers]
+name = Pipeline layers
+type = layers
+layers =
+    shorsighted.cli
+    shorsighted.output
+    shorsighted.core.scanner
+    shorsighted.core.merge
+    shorsighted.detectors
+    shorsighted.pe
+    shorsighted.signatures
+    shorsighted.core.model
+
+# Design §6 / D-13: detectors must stay independently evaluable.
+[importlinter:contract:detector-independence]
+name = Detectors never import each other
+type = independence
+modules =
+    shorsighted.detectors.imports
+    shorsighted.detectors.constants
+    shorsighted.detectors.heuristics

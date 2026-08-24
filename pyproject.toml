@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "shorsighted"
+description = "CBOM scanner for compiled Windows PE binaries (CycloneDX 1.6)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "zsk" }]
+keywords = ["cbom", "cyclonedx", "cryptography", "pqc", "pe", "sbom"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security :: Cryptography",
+    "Typing :: Typed",
+]
+dependencies = ["pefile>=2023.2.7"]
+dynamic = ["version"]
+
+[project.scripts]
+shorsighted = "shorsighted.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "mypy>=1.11",
+    "ruff>=0.6",
+    "jsonschema>=4",
+    "import-linter>=2",
+    "hypothesis>=6",
+]
+
+[tool.hatch.version]
+path = "shorsighted/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["shorsighted"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PTH", "C4"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+files = ["shorsighted", "tests"]
+
+[[tool.mypy.overrides]]
+module = "pefile.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config"
+
+[tool.coverage.run]
+source = ["shorsighted"]
+branch = true
+omit = ["shorsighted/cli.py", "shorsighted/__main__.py"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError"]
