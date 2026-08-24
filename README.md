@@ -1,5 +1,9 @@
 # SHORsighted
 
+[![CI](https://github.com/judahx67/SHORsighted/actions/workflows/ci.yml/badge.svg)](https://github.com/judahx67/SHORsighted/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
+
 > *Your binaries are Shor-sighted.*
 
 A CBOM scanner for **compiled Windows PE binaries**. It reads EXE/DLL/SYS files as bytes, detects evidence of

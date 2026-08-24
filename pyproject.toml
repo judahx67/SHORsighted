@@ -24,6 +24,11 @@ classifiers = [
 dependencies = ["pefile>=2023.2.7"]
 dynamic = ["version"]
 
+[project.urls]
+Homepage = "https://github.com/judahx67/SHORsighted"
+Repository = "https://github.com/judahx67/SHORsighted"
+Issues = "https://github.com/judahx67/SHORsighted/issues"
+
 [project.scripts]
 shorsighted = "shorsighted.cli:main"
 
