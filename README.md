@@ -13,9 +13,15 @@ Existing CBOM tooling reads source code. A great deal of real-world cryptography
 OpenSSL inside software nobody has the source to — invisible to every source-level scanner. That gap is the
 point of this tool.
 
-## Status: pre-alpha, slice 2 of 12 🌱
+## Status: pre-alpha, slice 3 of 12 🌱
 
-The skeleton, CI, and a defensive PE loader exist. No detection yet. Planning docs (`01requirements.md` … `05roadmap.md`) are the source
+The import detector works. Point it at a PE and it will name the algorithms it can
+see from the import table, with evidence and NIST quantum levels.
+
+**What it cannot do yet:** statically linked cryptography (the constant detector,
+slice 5 — and the whole reason this project exists), CycloneDX JSON output
+(slice 4), directory scanning (slice 7), embedded certificates (slice 8). The
+confidence numbers you see are uncalibrated placeholders until slice 10. Planning docs (`01requirements.md` … `05roadmap.md`) are the source
 of truth; `04implementationhandoff.md` holds the build order.
 
 ## What it will promise

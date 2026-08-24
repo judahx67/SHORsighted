@@ -1,0 +1,544 @@
+# Import-table signatures (FR-6) and the UTF-16 strings that disambiguate them.
+#
+# Two kinds of entry live here:
+#
+#   [[signature]]  a DLL + symbol rule. Matching any one symbol is a hit.
+#   [[string]]     a UTF-16LE literal, reportable only when a provider it
+#                  requires is also present in the same file.
+#
+# The second kind exists because of a Windows-specific problem. CNG takes its
+# algorithm as a runtime wide string, so `BCryptEncrypt` proves the binary does
+# *some* cryptography and nothing more. The algorithm name is still in the
+# file — as `L"AES"`, from bcrypt.h's BCRYPT_AES_ALGORITHM — so pairing the
+# generic import with the string is what turns "uses CNG" into "uses AES".
+#
+# On nist_quantum_level (FR-14), which is a NIST PQC *category*, not a general
+# "how bad is this" score:
+#   0        quantum-broken public-key: RSA, ECC, DH, DSA
+#   1/3/5    as hard as AES-128 / AES-192 / AES-256 key search
+#   2/4      as hard as SHA-256 / SHA-384 collision search
+# Where an import proves the family but not the key size — which is the usual
+# case — the level is the conservative floor for that family. Algorithms whose
+# weakness is classical rather than quantum (MD5, SHA-1, DES, RC4) leave the
+# field unset: they are broken, but not in the way this field measures, and
+# putting a number there would misreport what it means.
+
+# ---------------------------------------------------------------------------
+# Windows CNG — generic providers
+# ---------------------------------------------------------------------------
+
+[[signature]]
+id          = "cng-bcrypt"
+class       = "import-generic"
+dll         = "bcrypt.dll"
+provides    = "cng"
+family      = "CNG"
+description = "Cryptography API: Next Generation. Proves CNG use, not an algorithm."
+symbols = [
+    "BCryptOpenAlgorithmProvider",
+    "BCryptEncrypt",
+    "BCryptDecrypt",
+    "BCryptCreateHash",
+    "BCryptHashData",
+    "BCryptFinishHash",
+    "BCryptGenerateKeyPair",
+    "BCryptGenerateSymmetricKey",
+    "BCryptImportKeyPair",
+    "BCryptExportKey",
+    "BCryptSignHash",
+    "BCryptVerifySignature",
+    "BCryptSecretAgreement",
+    "BCryptDeriveKey",
+    "BCryptGenRandom",
+]
+
+[[signature]]
+id          = "cng-ncrypt"
+class       = "import-generic"
+dll         = "ncrypt.dll"
+provides    = "cng"
+family      = "CNG"
+description = "CNG key storage layer. Persisted keys, smartcards, TPM-backed keys."
+symbols = [
+    "NCryptOpenStorageProvider",
+    "NCryptOpenKey",
+    "NCryptCreatePersistedKey",
+    "NCryptEncrypt",
+    "NCryptDecrypt",
+    "NCryptSignHash",
+    "NCryptVerifySignature",
+    "NCryptImportKey",
+    "NCryptExportKey",
+    "NCryptSecretAgreement",
+]
+
+# ---------------------------------------------------------------------------
+# Windows CryptoAPI (legacy) — generic providers
+# ---------------------------------------------------------------------------
+
+[[signature]]
+id          = "capi-advapi32"
+class       = "import-generic"
+dll         = "advapi32.dll"
+provides    = "capi"
+family      = "CryptoAPI"
+description = "Legacy CryptoAPI. Algorithm arrives as a CALG_* constant, not a string."
+symbols = [
+    "CryptAcquireContextA",
+    "CryptAcquireContextW",
+    "CryptCreateHash",
+    "CryptHashData",
+    "CryptGetHashParam",
+    "CryptEncrypt",
+    "CryptDecrypt",
+    "CryptDeriveKey",
+    "CryptGenKey",
+    "CryptImportKey",
+    "CryptExportKey",
+    "CryptSignHashA",
+    "CryptSignHashW",
+    "CryptVerifySignatureA",
+    "CryptVerifySignatureW",
+]
+
+[[signature]]
+id          = "capi-crypt32"
+class       = "import-generic"
+dll         = "crypt32.dll"
+provides    = "capi"
+family      = "CryptoAPI"
+description = "Certificate and message handling; also DPAPI's CryptProtectData."
+symbols = [
+    "CertOpenStore",
+    "CertFindCertificateInStore",
+    "CertGetCertificateChain",
+    "CryptProtectData",
+    "CryptUnprotectData",
+    "CryptDecodeObjectEx",
+    "CryptEncodeObjectEx",
+    "CryptMsgOpenToDecode",
+]
+
+# ---------------------------------------------------------------------------
+# OpenSSL — specific algorithms
+#
+# The DLL glob is wide on purpose: OpenSSL ships as libcrypto-3-x64.dll,
+# libcrypto-1_1.dll, libeay32.dll, and vendor-renamed variants. Note that a
+# *statically* linked OpenSSL imports none of this and is invisible here —
+# catching that case is the constant detector's job (D-6), and the reason it is
+# treated as core rather than as a fallback.
+# ---------------------------------------------------------------------------
+
+[[signature]]
+id          = "openssl-aes"
+class       = "import-specific"
+dll         = "libcrypto*.dll"
+family      = "AES"
+algorithm   = "AES"
+primitive   = "block-cipher"
+nist_quantum_level = 1
+description = "Key size is not knowable from the symbol alone; level is the AES-128 floor."
+symbols = [
+    "AES_encrypt",
+    "AES_decrypt",
+    "AES_set_encrypt_key",
+    "AES_set_decrypt_key",
+    "AES_cbc_encrypt",
+    "EVP_aes_128_cbc",
+    "EVP_aes_192_cbc",
+    "EVP_aes_256_cbc",
+    "EVP_aes_128_gcm",
+    "EVP_aes_256_gcm",
+]
+
+[[signature]]
+id          = "openssl-sha2"
+class       = "import-specific"
+dll         = "libcrypto*.dll"
+family      = "SHA-2"
+algorithm   = "SHA-2"
+primitive   = "hash"
+nist_quantum_level = 2
+symbols = [
+    "SHA256_Init",
+    "SHA256_Update",
+    "SHA256_Final",
+    "SHA512_Init",
+    "SHA512_Update",
+    "EVP_sha256",
+    "EVP_sha384",
+    "EVP_sha512",
+]
+
+[[signature]]
+id          = "openssl-sha1"
+class       = "import-specific"
+dll         = "libcrypto*.dll"
+family      = "SHA-1"
+algorithm   = "SHA-1"
+primitive   = "hash"
+description = "Collision-broken classically. No quantum category applies."
+symbols = ["SHA1_Init", "SHA1_Update", "SHA1_Final", "EVP_sha1"]
+
+[[signature]]
+id          = "openssl-md5"
+class       = "import-specific"
+dll         = "libcrypto*.dll"
+family      = "MD5"
+algorithm   = "MD5"
+primitive   = "hash"
+description = "Broken classically. No quantum category applies."
+symbols = ["MD5_Init", "MD5_Update", "MD5_Final", "EVP_md5"]
+
+[[signature]]
+id          = "openssl-rsa"
+class       = "import-specific"
+dll         = "libcrypto*.dll"
+family      = "RSA"
+algorithm   = "RSA"
+primitive   = "pke"
+nist_quantum_level = 0
+description = "Quantum-broken by Shor. Headline finding for the migration persona."
+symbols = [
+    "RSA_new",
+    "RSA_generate_key_ex",
+    "RSA_public_encrypt",
+    "RSA_private_decrypt",
+    "RSA_sign",
+    "RSA_verify",
+    "EVP_PKEY_CTX_new_id",
+]
+
+[[signature]]
+id          = "openssl-ecdsa"
+class       = "import-specific"
+dll         = "libcrypto*.dll"
+family      = "ECDSA"
+algorithm   = "ECDSA"
+primitive   = "signature"
+nist_quantum_level = 0
+description = "Quantum-broken by Shor."
+symbols = [
+    "ECDSA_do_sign",
+    "ECDSA_do_verify",
+    "ECDSA_sign",
+    "ECDSA_verify",
+    "EC_KEY_new_by_curve_name",
+    "EC_KEY_generate_key",
+]
+
+[[signature]]
+id          = "openssl-ecdh"
+class       = "import-specific"
+dll         = "libcrypto*.dll"
+family      = "ECDH"
+algorithm   = "ECDH"
+primitive   = "key-agree"
+nist_quantum_level = 0
+symbols = ["ECDH_compute_key", "EVP_PKEY_derive", "EC_POINT_mul"]
+
+[[signature]]
+id          = "openssl-dh"
+class       = "import-specific"
+dll         = "libcrypto*.dll"
+family      = "DH"
+algorithm   = "DH"
+primitive   = "key-agree"
+nist_quantum_level = 0
+symbols = ["DH_new", "DH_generate_key", "DH_compute_key"]
+
+[[signature]]
+id          = "openssl-chacha20"
+class       = "import-specific"
+dll         = "libcrypto*.dll"
+family      = "ChaCha20"
+algorithm   = "ChaCha20"
+primitive   = "stream-cipher"
+nist_quantum_level = 5
+description = "256-bit key throughout; AES-256-equivalent category."
+symbols = ["EVP_chacha20", "EVP_chacha20_poly1305"]
+
+[[signature]]
+id          = "openssl-des"
+class       = "import-specific"
+dll         = "libcrypto*.dll"
+family      = "DES"
+algorithm   = "DES"
+primitive   = "block-cipher"
+description = "Broken by key size, not by quantum search. No category applies."
+symbols = ["DES_set_key", "DES_ecb_encrypt", "DES_ncbc_encrypt", "EVP_des_ede3_cbc"]
+
+# ---------------------------------------------------------------------------
+# mbedTLS and libsodium — specific algorithms
+# ---------------------------------------------------------------------------
+
+[[signature]]
+id          = "mbedtls-aes"
+class       = "import-specific"
+dll         = "*mbed*.dll"
+family      = "AES"
+algorithm   = "AES"
+primitive   = "block-cipher"
+nist_quantum_level = 1
+symbols = [
+    "mbedtls_aes_setkey_enc",
+    "mbedtls_aes_setkey_dec",
+    "mbedtls_aes_crypt_cbc",
+    "mbedtls_aes_crypt_ecb",
+    "mbedtls_gcm_starts",
+]
+
+[[signature]]
+id          = "mbedtls-sha2"
+class       = "import-specific"
+dll         = "*mbed*.dll"
+family      = "SHA-2"
+algorithm   = "SHA-2"
+primitive   = "hash"
+nist_quantum_level = 2
+symbols = ["mbedtls_sha256_starts", "mbedtls_sha256_update", "mbedtls_sha512_starts"]
+
+[[signature]]
+id          = "mbedtls-rsa"
+class       = "import-specific"
+dll         = "*mbed*.dll"
+family      = "RSA"
+algorithm   = "RSA"
+primitive   = "pke"
+nist_quantum_level = 0
+symbols = ["mbedtls_rsa_init", "mbedtls_rsa_pkcs1_sign", "mbedtls_rsa_pkcs1_encrypt"]
+
+[[signature]]
+id          = "mbedtls-ecdsa"
+class       = "import-specific"
+dll         = "*mbed*.dll"
+family      = "ECDSA"
+algorithm   = "ECDSA"
+primitive   = "signature"
+nist_quantum_level = 0
+symbols = ["mbedtls_ecdsa_sign", "mbedtls_ecdsa_verify", "mbedtls_ecp_group_load"]
+
+[[signature]]
+id          = "libsodium-xsalsa"
+class       = "import-specific"
+dll         = "libsodium*.dll"
+family      = "XSalsa20-Poly1305"
+algorithm   = "XSalsa20-Poly1305"
+primitive   = "ae"
+nist_quantum_level = 5
+symbols = ["crypto_secretbox_easy", "crypto_secretbox_open_easy"]
+
+[[signature]]
+id          = "libsodium-ed25519"
+class       = "import-specific"
+dll         = "libsodium*.dll"
+family      = "Ed25519"
+algorithm   = "Ed25519"
+primitive   = "signature"
+nist_quantum_level = 0
+description = "Quantum-broken by Shor, like every elliptic-curve scheme."
+symbols = ["crypto_sign_detached", "crypto_sign_verify_detached", "crypto_sign_keypair"]
+
+[[signature]]
+id          = "libsodium-x25519"
+class       = "import-specific"
+dll         = "libsodium*.dll"
+family      = "X25519"
+algorithm   = "X25519"
+primitive   = "key-agree"
+nist_quantum_level = 0
+symbols = ["crypto_box_easy", "crypto_box_beforenm", "crypto_scalarmult"]
+
+# ---------------------------------------------------------------------------
+# CNG algorithm identifiers, as UTF-16LE literals (design §4)
+#
+# Every value below is a BCRYPT_*_ALGORITHM identifier from bcrypt.h. Matching
+# includes the wide-string null terminator, which is what stops "SHA1" from
+# firing inside "SHA1_SOMETHING" and keeps a three-letter value like "AES" from
+# being a coin flip.
+# ---------------------------------------------------------------------------
+
+[[string]]
+id          = "cng-alg-aes"
+class       = "utf16-string"
+value       = "AES"
+requires    = ["cng"]
+family      = "AES"
+algorithm   = "AES"
+primitive   = "block-cipher"
+nist_quantum_level = 1
+description = "BCRYPT_AES_ALGORITHM. Key size is set at runtime, so the level is the floor."
+
+[[string]]
+id          = "cng-alg-rsa"
+class       = "utf16-string"
+value       = "RSA"
+requires    = ["cng"]
+family      = "RSA"
+algorithm   = "RSA"
+primitive   = "pke"
+nist_quantum_level = 0
+
+[[string]]
+id          = "cng-alg-rsa-sign"
+class       = "utf16-string"
+value       = "RSA_SIGN"
+requires    = ["cng"]
+family      = "RSA"
+algorithm   = "RSA"
+primitive   = "signature"
+nist_quantum_level = 0
+
+[[string]]
+id          = "cng-alg-ecdsa-p256"
+class       = "utf16-string"
+value       = "ECDSA_P256"
+requires    = ["cng"]
+family      = "ECDSA"
+algorithm   = "ECDSA-P256"
+parameter_set = "P-256"
+primitive   = "signature"
+oid         = "1.2.840.10045.3.1.7"
+nist_quantum_level = 0
+
+[[string]]
+id          = "cng-alg-ecdsa-p384"
+class       = "utf16-string"
+value       = "ECDSA_P384"
+requires    = ["cng"]
+family      = "ECDSA"
+algorithm   = "ECDSA-P384"
+parameter_set = "P-384"
+primitive   = "signature"
+oid         = "1.3.132.0.34"
+nist_quantum_level = 0
+
+[[string]]
+id          = "cng-alg-ecdsa-p521"
+class       = "utf16-string"
+value       = "ECDSA_P521"
+requires    = ["cng"]
+family      = "ECDSA"
+algorithm   = "ECDSA-P521"
+parameter_set = "P-521"
+primitive   = "signature"
+oid         = "1.3.132.0.35"
+nist_quantum_level = 0
+
+[[string]]
+id          = "cng-alg-ecdh-p256"
+class       = "utf16-string"
+value       = "ECDH_P256"
+requires    = ["cng"]
+family      = "ECDH"
+algorithm   = "ECDH-P256"
+parameter_set = "P-256"
+primitive   = "key-agree"
+nist_quantum_level = 0
+
+[[string]]
+id          = "cng-alg-ecdh-p384"
+class       = "utf16-string"
+value       = "ECDH_P384"
+requires    = ["cng"]
+family      = "ECDH"
+algorithm   = "ECDH-P384"
+parameter_set = "P-384"
+primitive   = "key-agree"
+nist_quantum_level = 0
+
+[[string]]
+id          = "cng-alg-dh"
+class       = "utf16-string"
+value       = "DH"
+requires    = ["cng"]
+family      = "DH"
+algorithm   = "DH"
+primitive   = "key-agree"
+nist_quantum_level = 0
+
+[[string]]
+id          = "cng-alg-dsa"
+class       = "utf16-string"
+value       = "DSA"
+requires    = ["cng"]
+family      = "DSA"
+algorithm   = "DSA"
+primitive   = "signature"
+nist_quantum_level = 0
+
+[[string]]
+id          = "cng-alg-sha256"
+class       = "utf16-string"
+value       = "SHA256"
+requires    = ["cng"]
+family      = "SHA-2"
+algorithm   = "SHA-256"
+parameter_set = "256"
+primitive   = "hash"
+oid         = "2.16.840.1.101.3.4.2.1"
+nist_quantum_level = 2
+
+[[string]]
+id          = "cng-alg-sha384"
+class       = "utf16-string"
+value       = "SHA384"
+requires    = ["cng"]
+family      = "SHA-2"
+algorithm   = "SHA-384"
+parameter_set = "384"
+primitive   = "hash"
+oid         = "2.16.840.1.101.3.4.2.2"
+nist_quantum_level = 4
+
+[[string]]
+id          = "cng-alg-sha512"
+class       = "utf16-string"
+value       = "SHA512"
+requires    = ["cng"]
+family      = "SHA-2"
+algorithm   = "SHA-512"
+parameter_set = "512"
+primitive   = "hash"
+oid         = "2.16.840.1.101.3.4.2.3"
+nist_quantum_level = 4
+
+[[string]]
+id          = "cng-alg-sha1"
+class       = "utf16-string"
+value       = "SHA1"
+requires    = ["cng"]
+family      = "SHA-1"
+algorithm   = "SHA-1"
+primitive   = "hash"
+description = "Collision-broken classically. No quantum category applies."
+
+[[string]]
+id          = "cng-alg-md5"
+class       = "utf16-string"
+value       = "MD5"
+requires    = ["cng"]
+family      = "MD5"
+algorithm   = "MD5"
+primitive   = "hash"
+description = "Broken classically. No quantum category applies."
+
+[[string]]
+id          = "cng-alg-3des"
+class       = "utf16-string"
+value       = "3DES"
+requires    = ["cng"]
+family      = "3DES"
+algorithm   = "3DES"
+primitive   = "block-cipher"
+description = "Deprecated by NIST for its 64-bit block, not by quantum search."
+
+[[string]]
+id          = "cng-alg-rc4"
+class       = "utf16-string"
+value       = "RC4"
+requires    = ["cng"]
+family      = "RC4"
+algorithm   = "RC4"
+primitive   = "stream-cipher"
+description = "Broken classically. No quantum category applies."

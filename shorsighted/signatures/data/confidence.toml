@@ -1,0 +1,48 @@
+# Per-class confidence (design §4).
+#
+# THESE ARE PLACEHOLDERS. Every value below is a guess, and each one is
+# supposed to be replaced in slice 10 by the *measured precision of that class
+# on the corpus*, bucketed to 0.05 (test-plan §5). That is why confidence lives
+# in data rather than in Python: it is a measurement, and measurements get
+# retaken. Whenever signatures change, the eval re-runs and these move.
+#
+# Until that happens, treat every number here as unearned. The README must not
+# quote them as if they meant anything yet.
+
+[classes]
+
+# An import that names its algorithm: EVP_aes_256_gcm can only be AES. The
+# remaining error is linkage without use — the code is present but never called
+# — which is exactly why FR-13 says findings mean evidence of presence and
+# never proof of use.
+import-specific = 0.95
+
+# A provider import with no algorithm attached: BCryptEncrypt proves CNG, full
+# stop. High confidence in a deliberately weak claim ("this binary does
+# cryptography"), which is why it is reported as a provider family and never as
+# an algorithm.
+import-generic = 0.90
+
+# A bare UTF-16 algorithm name. Low on its own: the literal "AES" turns up in
+# plenty of binaries that never encrypt anything. The detector only reports one
+# when a matching provider import is present in the same file, which is what
+# makes it usable at all.
+utf16-string = 0.70
+
+# Constant-detector classes, unused until slice 5. Listed here so the loader's
+# validation has a value for every class it might meet, and so the eventual
+# calibration has a full baseline to overwrite.
+unique-table  = 0.90
+word-table    = 0.80
+der-structure = 0.85
+
+# The honest low end. FR-8's entropy heuristic cannot distinguish a key from
+# compressed data, and NFR-5 sets no minimum bar for it — it ships measured,
+# not defended.
+entropy-region = 0.30
+
+[merge]
+
+# Added when independent evidence agrees, capped at 0.99 by the merge stage.
+# Never 1.0: the tool is reasoning about a binary it did not build.
+corroboration_bonus = 0.05
