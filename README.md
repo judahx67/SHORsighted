@@ -9,9 +9,9 @@ Existing CBOM tooling reads source code. A great deal of real-world cryptography
 OpenSSL inside software nobody has the source to — invisible to every source-level scanner. That gap is the
 point of this tool.
 
-## Status: pre-alpha, slice 1 of 12 🌱
+## Status: pre-alpha, slice 2 of 12 🌱
 
-The skeleton and CI exist. No detection yet. Planning docs (`01requirements.md` … `05roadmap.md`) are the source
+The skeleton, CI, and a defensive PE loader exist. No detection yet. Planning docs (`01requirements.md` … `05roadmap.md`) are the source
 of truth; `04implementationhandoff.md` holds the build order.
 
 ## What it will promise
