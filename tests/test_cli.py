@@ -1,6 +1,7 @@
 """Slice 1 smoke test: the CLI wiring works end to end.
 
-Tiny on purpose. It exists so that "CI is green" means something before any feature code lands.
+Tiny on purpose. It exists so that "CI is green" means something before any
+feature code lands.
 """
 
 import subprocess
@@ -12,7 +13,9 @@ from shorsighted import __version__
 from shorsighted.cli import main
 
 
-def test_version_flag_prints_version_and_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:
+def test_version_flag_prints_version_and_exits_zero(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     with pytest.raises(SystemExit) as exc:
         main(["--version"])
     assert exc.value.code == 0

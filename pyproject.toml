@@ -47,6 +47,7 @@ packages = ["shorsighted"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PTH", "C4"]
