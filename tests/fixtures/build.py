@@ -67,6 +67,7 @@ def build_pe(
     imports: tuple[tuple[str, tuple[str | int, ...]], ...] = (),
     is_dll: bool = False,
     machine_id: int | None = None,
+    clr: bool = False,
 ) -> bytes:
     """Assemble a loadable PE image.
 
@@ -77,6 +78,11 @@ def build_pe(
     `machine_id` overrides the machine word without changing the layout, which
     is how a test produces an ARM64 file to check that unsupported machines are
     rejected rather than mislabelled.
+
+    `clr` sets the COM descriptor data directory, making the result a managed
+    assembly as far as FR-4 is concerned. The directory points at a plausible
+    RVA and nothing parses it, which is exactly the level of detail the trait
+    check needs.
     """
     if machine not in _MAGIC:
         raise ValueError(f"unknown machine {machine!r}")
@@ -145,6 +151,7 @@ def build_pe(
         size_of_headers=headers_size,
         import_rva=import_rva,
         import_size=import_size,
+        clr=clr,
     )
 
     table = b"".join(
@@ -181,6 +188,7 @@ def _build_optional_header(
     size_of_headers: int,
     import_rva: int,
     import_size: int,
+    clr: bool = False,
 ) -> bytes:
     """The optional header, which is not optional."""
     if machine == "x86":
@@ -236,6 +244,8 @@ def _build_optional_header(
 
     directories = bytearray(16 * 8)
     struct.pack_into("<II", directories, 1 * 8, import_rva, import_size)
+    if clr:
+        struct.pack_into("<II", directories, 14 * 8, SECTION_ALIGNMENT, 0x48)
 
     return head + middle + tail_sizes + trailer + bytes(directories)
 

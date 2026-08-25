@@ -60,7 +60,7 @@ def test_module_entry_point_runs() -> None:
 
 def test_missing_path_is_a_usage_error(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert main([str(tmp_path / "nope.exe")]) == EXIT_USAGE
-    assert "not a file" in capsys.readouterr().err
+    assert "no such file or directory" in capsys.readouterr().err
 
 
 def test_a_clean_scan_exits_zero(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -75,7 +75,10 @@ def test_an_unreadable_file_exits_two_not_one(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """FR-16 distinguishes 'the scan never started' from 'the scan ran and some
-    files failed'. CI callers act on that difference."""
+    files failed'. CI callers act on that difference.
+
+    A file named explicitly is never silently skipped, even when it turns out
+    not to be a PE: reporting nothing would read as "scanned, clean"."""
     target = tmp_path / "junk.exe"
     target.write_bytes(b"this is not a PE file at all")
     assert main([str(target), "--format", "text"]) == EXIT_FILE_ERRORS
@@ -283,3 +286,85 @@ def test_filtering_happens_after_corroboration(
     # Neither detector alone reaches 0.96; corroborated, AES does.
     assert main([str(target), "--format", "text", "--min-confidence", "0.96"]) == EXIT_OK
     assert "AES" in capsys.readouterr().out
+
+
+# --- directories (FR-1, US-2, AC-4) ---------------------------------------
+
+
+def test_scanning_a_directory_covers_every_pe(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """US-2: point it at an installed product and inventory it in one command."""
+    (tmp_path / "sub").mkdir()
+    write_pe(tmp_path, "a.exe", build_pe())
+    write_pe(tmp_path / "sub", "b.dll", build_pe(is_dll=True))
+    (tmp_path / "notes.txt").write_text("not a binary")
+
+    assert main([str(tmp_path)]) == EXIT_OK
+    document = json.loads(capsys.readouterr().out)
+
+    names = {c["name"] for c in document["components"] if c["type"] == "file"}
+    assert names == {"a.exe", "b.dll"}
+    skipped = next(
+        p["value"]
+        for p in document["metadata"]["properties"]
+        if p["name"] == "shorsighted:skipped-non-pe"
+    )
+    assert skipped == "1"
+
+
+def test_a_directory_with_a_broken_file_exits_two(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC-4: the scan completes, produces one report, and exits 2."""
+    write_pe(tmp_path, "good.exe", build_pe())
+    write_pe(tmp_path, "broken.exe", build_pe()[:200])
+    assert main([str(tmp_path), "--format", "text"]) == EXIT_FILE_ERRORS
+    output = capsys.readouterr().out
+    assert "could not analyse: truncated" in output
+    assert "2 file(s) scanned, 1 errored" in output
+
+
+def test_a_non_pe_named_explicitly_is_reported_not_skipped(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The asymmetry that matters: quiet skipping is for trees nobody asked
+    about, never for the one file someone pointed at."""
+    target = tmp_path / "photo.jpg"
+    target.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 64)
+    assert main([str(target), "--format", "text"]) == EXIT_FILE_ERRORS
+    assert "could not analyse: not-pe" in capsys.readouterr().out
+
+
+# --- --detectors ----------------------------------------------------------
+
+
+def test_detectors_flag_restricts_which_run(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """NFR-5 needs per-detector measurement, which needs per-detector runs."""
+    from tools.derive_constants import aes_sbox
+
+    image = build_pe(
+        sections=(SectionSpec(".rdata", b"\x00" * 32 + aes_sbox()),),
+        imports=(("libcrypto-3-x64.dll", ("RSA_sign",)),),
+    )
+    target = write_pe(tmp_path, "both.exe", image)
+
+    main([str(target), "--format", "text", "--detectors", "constants"])
+    constants_only = capsys.readouterr().out
+    assert "AES" in constants_only
+    assert "RSA" not in constants_only
+
+    main([str(target), "--format", "text", "--detectors", "imports"])
+    imports_only = capsys.readouterr().out
+    assert "RSA" in imports_only
+    assert "AES" not in imports_only
+
+
+def test_an_unknown_detector_name_is_a_usage_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = write_pe(tmp_path, "clean.exe", build_pe())
+    assert main([str(target), "--detectors", "telepathy"]) == EXIT_USAGE
+    assert "unknown detector 'telepathy'" in capsys.readouterr().err

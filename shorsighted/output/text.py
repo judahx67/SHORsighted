@@ -135,9 +135,14 @@ def _render_footer(result: ScanResult) -> str:
         1 for f in result.files for finding in f.findings if finding.nist_quantum_level == 0
     )
 
+    counts = f"{scanned} file(s) scanned, {errored} errored"
+    if result.skipped_non_pe:
+        # FR-1 skips non-PE files silently, but "we looked at 4 and ignored
+        # 9,960" is what tells a reader whether the scan covered what they meant.
+        counts += f", {result.skipped_non_pe} non-PE skipped"
+
     lines = [
-        f"{scanned} file(s) scanned, {errored} errored, {total} finding(s), "
-        f"{broken} quantum-broken",
+        f"{counts}, {total} finding(s), {broken} quantum-broken",
         f"signatures {result.signature_version}  |  shorsighted {result.tool_version}",
         "findings are evidence of presence, not proof of use",
     ]

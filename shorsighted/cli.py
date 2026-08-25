@@ -1,8 +1,4 @@
-"""Command-line surface (FR-17). Argparse plumbing and exit codes; no analysis.
-
-Single files only in this slice. Directory walking and `--detectors` arrive
-with the slices that give them something to do.
-"""
+"""Command-line surface (FR-17). Argparse plumbing and exit codes; no analysis."""
 
 import argparse
 import sys
@@ -11,7 +7,8 @@ from pathlib import Path
 
 from shorsighted import __version__
 from shorsighted.core.model import AnalysisStatus, ScanResult
-from shorsighted.core.scanner import scan_paths
+from shorsighted.core.scanner import scan_tree
+from shorsighted.detectors.base import REGISTRY, Detector
 from shorsighted.output import cbom, text
 from shorsighted.signatures.loader import load_signatures
 from shorsighted.signatures.schema import SignatureError
@@ -37,7 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
         "path",
         nargs="?",
         type=Path,
-        help="PE file to scan (directory scanning arrives in a later slice)",
+        help="PE file, or a directory to walk recursively",
     )
     parser.add_argument(
         "--format",
@@ -52,6 +49,13 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         metavar="FILE",
         help="write to FILE instead of stdout",
+    )
+    parser.add_argument(
+        "--detectors",
+        metavar="LIST",
+        help="comma-separated detectors to run, from: "
+        + ",".join(sorted(REGISTRY))
+        + " (default: all)",
     )
     parser.add_argument(
         "--min-confidence",
@@ -87,8 +91,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return EXIT_USAGE
 
-    if not args.path.is_file():
-        print(f"shorsighted: not a file: {args.path}", file=sys.stderr)
+    if not args.path.exists():
+        print(f"shorsighted: no such file or directory: {args.path}", file=sys.stderr)
+        return EXIT_USAGE
+
+    try:
+        detectors = _chosen_detectors(args.detectors)
+    except KeyError as exc:
+        known = ", ".join(sorted(REGISTRY))
+        print(f"shorsighted: unknown detector {exc.args[0]!r} (known: {known})", file=sys.stderr)
         return EXIT_USAGE
 
     try:
@@ -98,10 +109,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"shorsighted: signature data is invalid: {exc}", file=sys.stderr)
         return EXIT_USAGE
 
-    result = scan_paths(
-        [args.path],
+    result = scan_tree(
+        args.path,
         signatures,
         tool_version=__version__,
+        detectors=detectors,
         min_confidence=args.min_confidence,
     )
     rendered = _render(result, args.format, reproducible=args.reproducible)
@@ -123,3 +135,15 @@ def _render(result: ScanResult, output_format: str, *, reproducible: bool) -> st
     if output_format == "json":
         return cbom.serialize(result, reproducible=reproducible)
     return text.render(result) + "\n"
+
+
+def _chosen_detectors(names: str | None) -> Sequence[Detector] | None:
+    """Resolve `--detectors`, or None for "run everything".
+
+    Selecting a subset is how the evaluation measures one detector at a time
+    (NFR-5), and how a user who distrusts the heuristics turns them off without
+    losing the rest.
+    """
+    if not names:
+        return None
+    return [REGISTRY[name.strip()] for name in names.split(",") if name.strip()]

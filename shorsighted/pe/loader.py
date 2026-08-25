@@ -32,6 +32,9 @@ _MACHINES = {0x014C: "x86", 0x8664: "x64"}
 
 _IMAGE_FILE_DLL = 0x2000
 
+_CLR_DIRECTORY_INDEX = 14
+"""IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR: the CLR header (FR-4)."""
+
 
 class PEFormatError(Exception):
     """A file could not be understood as a PE.
@@ -126,6 +129,13 @@ class LoadedPE:
 
     _image: bytes | mmap.mmap = field(repr=False, compare=False)
 
+    clr_directory: tuple[int, int] | None = None
+    """(RVA, size) of the CLR header, or None for a native binary.
+
+    Read here rather than in `pe/traits.py` because this module is the only one
+    permitted to touch `pefile` - trait analysis works on plain values, not on a
+    parser holding attacker-controlled input."""
+
     @property
     def data(self) -> bytes | mmap.mmap:
         """The whole file. The constant detector (slice 5) scans this directly,
@@ -184,6 +194,7 @@ def load_bytes(data: bytes | mmap.mmap, path: Path = Path("<memory>")) -> Loaded
         is_dll = bool(int(parsed.FILE_HEADER.Characteristics) & _IMAGE_FILE_DLL)
         sections = _read_sections(parsed, data)
         imports = _read_imports(parsed)
+        clr_directory = _read_clr_directory(parsed)
     except PEFormatError:
         raise
     except Exception as exc:  # hostile headers may break anything
@@ -197,6 +208,7 @@ def load_bytes(data: bytes | mmap.mmap, path: Path = Path("<memory>")) -> Loaded
         is_dll=is_dll,
         sections=sections,
         imports=imports,
+        clr_directory=clr_directory,
         _image=data,
     )
 
@@ -250,6 +262,34 @@ def _reject_obvious_non_pe(data: bytes | mmap.mmap) -> None:
         raise PEFormatError("truncated", "PE header offset past end of file")
     if data[e_lfanew : e_lfanew + len(_PE_SIGNATURE)] != _PE_SIGNATURE:
         raise PEFormatError("not-pe")
+
+    _reject_truncated_headers(data, e_lfanew)
+
+
+def _reject_truncated_headers(data: bytes | mmap.mmap, e_lfanew: int) -> None:
+    """Refuse a file too short to contain the headers it declares.
+
+    pefile is lenient here: hand it a PE cut off mid-header and it returns a
+    parsed object with a plausible machine word and zero sections, which the
+    pipeline would then report as a successfully scanned file with no findings.
+    That is the single most misleading outcome this tool can produce (FR-13), so
+    the arithmetic is done explicitly: COFF header, optional header, and section
+    table all have to fit inside the file that actually exists.
+    """
+    length = len(data)
+    coff = e_lfanew + len(_PE_SIGNATURE)
+    if coff + 20 > length:
+        raise PEFormatError("truncated", "COFF header runs past end of file")
+
+    (section_count,) = struct.unpack("<H", data[coff + 2 : coff + 4])
+    (optional_size,) = struct.unpack("<H", data[coff + 16 : coff + 18])
+
+    headers_end = coff + 20 + optional_size + section_count * 40
+    if headers_end > length:
+        raise PEFormatError(
+            "truncated",
+            f"headers need {headers_end} bytes but the file is {length}",
+        )
 
 
 def _read_sections(parsed: pefile.PE, data: bytes | mmap.mmap) -> tuple[Section, ...]:
@@ -306,3 +346,20 @@ def _read_imports(parsed: pefile.PE) -> tuple[ImportedDLL, ...]:
             )
         )
     return tuple(dlls)
+
+
+def _read_clr_directory(parsed: pefile.PE) -> tuple[int, int] | None:
+    """The CLR header's (RVA, size), or None.
+
+    Only the directory entry is read, never followed. Knowing a file is managed
+    is enough for FR-4; parsing CLR metadata is a v0.2 detector, and every
+    structure this module declines to walk is attacker-reachable parsing that
+    cannot go wrong.
+    """
+    directories = getattr(parsed, "OPTIONAL_HEADER", None)
+    entries = getattr(directories, "DATA_DIRECTORY", None)
+    if not entries or len(entries) <= _CLR_DIRECTORY_INDEX:
+        return None
+    entry = entries[_CLR_DIRECTORY_INDEX]
+    rva, size = int(entry.VirtualAddress), int(entry.Size)
+    return (rva, size) if rva and size else None
