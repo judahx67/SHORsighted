@@ -199,3 +199,11 @@ def test_cli_json_validates_against_the_schema(
     )
     main([str(write_pe(tmp_path, "cng.exe", image))])
     assert_valid_cbom(json.loads(capsys.readouterr().out))  # type: ignore[operator]
+
+
+def test_output_has_a_short_flag(tmp_path: Path) -> None:
+    """The README documents `-o`, so the README gets a test."""
+    target = write_pe(tmp_path, "clean.exe", build_pe())
+    destination = tmp_path / "bom.json"
+    assert main([str(target), "-o", str(destination)]) == EXIT_OK
+    assert json.loads(destination.read_text(encoding="utf-8"))["bomFormat"] == "CycloneDX"

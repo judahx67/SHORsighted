@@ -47,6 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
         "table with no stability guarantee (default: json)",
     )
     parser.add_argument(
+        "-o",
         "--output",
         type=Path,
         metavar="FILE",
