@@ -13,8 +13,10 @@ from pathlib import Path
 from typing import Any
 
 from shorsighted.signatures.schema import (
+    ConstantSignature,
     SignatureError,
     SignatureSet,
+    parse_constant_signature,
     parse_import_signature,
     parse_string_signature,
     validate_set,
@@ -48,6 +50,7 @@ def load_signatures(directory: Path | None = None) -> SignatureSet:
     signature_set = SignatureSet(
         imports=import_signatures,
         strings=string_signatures,
+        constants=_load_constants(root),
         confidence=confidence,
         corroboration_bonus=corroboration_bonus,
         version=signature_version(root),
@@ -111,3 +114,28 @@ def _load_confidence(path: Path) -> tuple[dict[str, float], float]:
         raise SignatureError(f"{path.name}: corroboration_bonus must be a number in [0, 1]")
 
     return confidence, float(bonus)
+
+
+def _load_constants(root: Path) -> tuple[ConstantSignature, ...]:
+    """Load every `constants/*.toml` plus `confusables.toml`.
+
+    Sorted by filename so the load order - and therefore the order findings come
+    back in - does not depend on how the filesystem feels today (NFR-6).
+
+    Missing files are not an error here: `constants/` is absent in the minimal
+    signature directories tests build, and a deployment that ships only import
+    signatures is a smaller tool rather than a broken one.
+    """
+    paths = sorted((root / "constants").glob("*.toml"))
+    confusables = root / "confusables.toml"
+    if confusables.is_file():
+        paths.append(confusables)
+
+    signatures: list[ConstantSignature] = []
+    for path in paths:
+        document = _read_toml(path)
+        signatures.extend(
+            parse_constant_signature(raw, f"{path.name}[signature #{index + 1}]")
+            for index, raw in enumerate(_table_array(document, "signature", path))
+        )
+    return tuple(signatures)

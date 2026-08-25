@@ -13,12 +13,14 @@ Existing CBOM tooling reads source code. A great deal of real-world cryptography
 OpenSSL inside software nobody has the source to — invisible to every source-level scanner. That gap is the
 point of this tool.
 
-## Status: pre-alpha, slice 4 of 12 🌱
+## Status: pre-alpha, slice 5 of 12 🌱
 
 Point it at a PE file and it emits a CycloneDX 1.6 CBOM naming the algorithms it
-can see from the import table, with evidence, offsets, and NIST quantum levels.
-Every document the test suite produces is validated against the official 1.6
-schema in CI.
+finds, with evidence, offsets, and NIST quantum levels. Two detectors run: the
+import table, and **the constant tables** — so statically linked cryptography,
+which imports nothing and is invisible to every source-reading CBOM tool, is
+detected too. Every document the test suite produces is validated against the
+official 1.6 schema in CI.
 
 ```console
 $ shorsighted app.exe                      # CycloneDX 1.6 JSON (the contract)
@@ -26,10 +28,10 @@ $ shorsighted app.exe --format text        # summary table, no stability guarant
 $ shorsighted app.exe --reproducible -o bom.json
 ```
 
-**What it cannot do yet:** statically linked cryptography (the constant detector,
-slice 5 — and the whole reason this project exists), directory scanning (slice 7),
-embedded certificates (slice 8). The confidence numbers you see are uncalibrated
-placeholders until slice 10.
+**What it cannot do yet:** corroborate findings across detectors (slice 6),
+scan directories (slice 7), find embedded certificates (slice 8). DES and the
+PQC constant tables are not shipped — see `tools/derive_constants.py` for why.
+The confidence numbers you see are uncalibrated placeholders until slice 10.
 
 Planning docs (`01requirements.md` … `05roadmap.md`) are the source of truth;
 `04implementationhandoff.md` holds the build order.

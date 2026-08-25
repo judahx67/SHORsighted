@@ -14,7 +14,7 @@ what to fix.
 """
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 SIGNATURE_CLASSES = frozenset(
     {
@@ -103,12 +103,60 @@ class StringSignature:
     description: str = ""
 
 
+CONSTANT_CLASSES = frozenset({"unique-table", "word-table"})
+
+WORD_LAYOUTS = frozenset({"le-contiguous", "be-contiguous"})
+"""How a word table is laid out in the binary.
+
+A byte table like the AES S-box is byte-order invariant. A word table like
+SHA-256's IV is not: the same eight constants appear as one byte sequence in a
+little-endian build and a different one where the compiler kept them in the
+big-endian order the standard prints them in. Both are expanded and searched,
+because both occur.
+"""
+
+
+@dataclass(frozen=True)
+class ConstantSignature:
+    """A byte pattern from `constants/*.toml` or `confusables.toml` (FR-7)."""
+
+    id: str
+    signature_class: str
+
+    patterns: tuple[bytes, ...]
+    """Expanded at load time: one entry per layout for a word table, exactly one
+    for a byte table. Detectors search bytes and never re-derive them."""
+
+    min_match: int
+    """Anchor length. The detector searches for this many leading bytes and
+    reports a hit on them alone.
+
+    Shorter than the full table on purpose: an optimising compiler may split a
+    table across sections, emit only the half an implementation uses, or reorder
+    its tail. Requiring the whole table would lose those builds; the anchor is
+    the compromise, and it is per-signature because how much of a table is
+    distinctive varies enormously between them."""
+
+    suppresses: bool = False
+    """A confusable rather than cryptography. Never reported; a match vetoes
+    crypto claims whose evidence overlaps the same region (design §4)."""
+
+    family: str | None = None
+    algorithm: str | None = None
+    primitive: str | None = None
+    parameter_set: str | None = None
+    oid: str | None = None
+    nist_quantum_level: int | None = None
+    description: str = ""
+
+
 @dataclass(frozen=True)
 class SignatureSet:
     """Everything the detectors need, already validated."""
 
     imports: tuple[ImportSignature, ...] = ()
     strings: tuple[StringSignature, ...] = ()
+    constants: tuple[ConstantSignature, ...] = ()
     confidence: dict[str, float] = field(default_factory=dict)
     corroboration_bonus: float = 0.0
 
@@ -237,9 +285,10 @@ def parse_string_signature(raw: dict[str, Any], where: str) -> StringSignature:
 
 def validate_set(signature_set: SignatureSet) -> None:
     """Whole-set checks that no single signature can make on its own."""
-    every: list[ImportSignature | StringSignature] = [
+    every: list[ImportSignature | StringSignature | ConstantSignature] = [
         *signature_set.imports,
         *signature_set.strings,
+        *signature_set.constants,
     ]
 
     seen: dict[str, str] = {}
@@ -270,3 +319,89 @@ def validate_set(signature_set: SignatureSet) -> None:
                 f"signature {signature.id!r} uses class {signature.signature_class!r}, "
                 f"which has no value in confidence.toml"
             )
+
+
+def _parse_hex(value: str, where: str, field: str) -> bytes:
+    try:
+        return bytes.fromhex(value)
+    except ValueError as exc:
+        raise SignatureError(f"{where}: field {field!r} is not valid hex - {exc}") from exc
+
+
+def parse_constant_signature(raw: dict[str, Any], where: str) -> ConstantSignature:
+    signature_class = _validate_class(raw, where, CONSTANT_CLASSES)
+    identifier = _require_str(raw, "id", where)
+
+    if signature_class == "unique-table":
+        pattern = _parse_hex(_require_str(raw, "pattern", where), where, "pattern")
+        if not pattern:
+            raise SignatureError(f"{where}: field 'pattern' must not be empty")
+        patterns: tuple[bytes, ...] = (pattern,)
+    else:
+        patterns = _expand_words(raw, where)
+
+    min_match = raw.get("min_match", len(patterns[0]))
+    if not isinstance(min_match, int) or isinstance(min_match, bool) or min_match <= 0:
+        raise SignatureError(f"{where}: min_match must be a positive integer")
+    shortest = min(len(pattern) for pattern in patterns)
+    if min_match > shortest:
+        raise SignatureError(
+            f"{where}: min_match ({min_match}) exceeds the pattern length ({shortest})"
+        )
+
+    suppresses = raw.get("suppresses", False)
+    if not isinstance(suppresses, bool):
+        raise SignatureError(f"{where}: field 'suppresses' must be true or false")
+
+    signature = ConstantSignature(
+        id=identifier,
+        signature_class=signature_class,
+        patterns=patterns,
+        min_match=min_match,
+        suppresses=suppresses,
+        family=_optional_str(raw, "family", where),
+        algorithm=_optional_str(raw, "algorithm", where),
+        primitive=_optional_str(raw, "primitive", where),
+        parameter_set=_optional_str(raw, "parameter_set", where),
+        oid=_optional_str(raw, "oid", where),
+        nist_quantum_level=_optional_level(raw, where),
+        description=raw.get("description", ""),
+    )
+    if not signature.family:
+        raise SignatureError(f"{where}: a constant signature must set 'family'")
+    return signature
+
+
+def _expand_words(raw: dict[str, Any], where: str) -> tuple[bytes, ...]:
+    """Turn hex words plus layouts into concrete byte patterns.
+
+    Done once at load time rather than per file scanned: a directory walk hits
+    this data thousands of times and none of it depends on the file.
+    """
+    words_hex = _string_list(raw, "words", where, required=True)
+    word_size = _require(raw, "word_size", where)
+    if word_size not in (4, 8):
+        raise SignatureError(f"{where}: word_size must be 4 or 8, got {word_size!r}")
+
+    values = []
+    for word in words_hex:
+        if len(word) != word_size * 2:
+            raise SignatureError(
+                f"{where}: word {word!r} is not {word_size * 2} hex digits "
+                f"for word_size {word_size}"
+            )
+        values.append(int.from_bytes(_parse_hex(word, where, "words"), "big"))
+
+    layouts = _string_list(raw, "layouts", where, required=True)
+    unknown = set(layouts) - WORD_LAYOUTS
+    if unknown:
+        known = ", ".join(sorted(WORD_LAYOUTS))
+        raise SignatureError(f"{where}: unknown layout(s) {sorted(unknown)} (known: {known})")
+
+    expanded = []
+    for layout in layouts:
+        order: Literal["little", "big"] = "little" if layout == "le-contiguous" else "big"
+        expanded.append(b"".join(value.to_bytes(word_size, order) for value in values))
+    # A palindromic table can expand identically in both orders; searching the
+    # same bytes twice would double-report it.
+    return tuple(dict.fromkeys(expanded))

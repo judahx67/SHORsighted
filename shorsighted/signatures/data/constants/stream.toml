@@ -1,0 +1,18 @@
+# Stream-cipher constants, from RFC 8439.
+# Do not hand-edit: run `python -m tools.derive_constants` instead.
+#
+# ChaCha20's sigma is ASCII, which makes it both easy to find and easy to
+# mistake for an ordinary string. It is 16 bytes and highly specific, so a
+# match is strong evidence - but note it also appears in Salsa20 and XSalsa20,
+# hence the family-level claim.
+
+[[signature]]
+id = "chacha20-sigma"
+family = "ChaCha20"
+algorithm = "ChaCha20"
+primitive = "stream-cipher"
+nist_quantum_level = 5
+class = "unique-table"
+description = "The constant \"expand 32-byte k\", RFC 8439 2.3"
+pattern = "657870616e642033322d62797465206b"
+min_match = 16

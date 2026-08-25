@@ -1,0 +1,20 @@
+# SHA-3 / Keccak constants, derived from FIPS 202 by tools/derive_constants.py.
+# Do not hand-edit: run `python -m tools.derive_constants` instead.
+#
+# The round constants come from an 8-bit LFSR (3.2.5), so they are derivable
+# rather than transcribed. They are shared by every SHA-3 variant and by SHAKE,
+# which is why this reports the family and not a parameter set - and why it also
+# fires on SHA-3-based PQC schemes, which is correct: they do use Keccak.
+
+[[signature]]
+id = "keccak-round-constants"
+family = "SHA-3"
+algorithm = "Keccak"
+primitive = "hash"
+nist_quantum_level = 2
+class = "word-table"
+description = "Keccak-f[1600] round constants, FIPS 202 3.2.5"
+words = ["0000000000000001", "0000000000008082", "800000000000808a", "8000000080008000", "000000000000808b", "0000000080000001", "8000000080008081", "8000000000008009", "000000000000008a", "0000000000000088", "0000000080008009", "000000008000000a", "000000008000808b", "800000000000008b", "8000000000008089", "8000000000008003", "8000000000008002", "8000000000000080", "000000000000800a", "800000008000000a", "8000000080008081", "8000000000008080", "0000000080000001", "8000000080008008"]
+word_size = 8
+layouts = ["le-contiguous", "be-contiguous"]
+min_match = 64
