@@ -6,7 +6,8 @@ one would be a test nobody could rerun on a clean machine, and a repo full of
 crypto-bearing executables trips antivirus on contributors' machines.
 
 ```
-pytest                      # everything
+pytest                      # everything (includes a 200-mutant fuzz subset)
+SHORSIGHTED_FUZZ=full pytest tests/test_fuzz.py   # the full 2,000-mutant sweep
 pytest --cov                # with the coverage gate (>= 90% line, 80% branch)
 pytest tests/test_merge.py  # one file
 pytest -k corroborat        # by name
@@ -34,6 +35,7 @@ Which test holds each acceptance criterion up (`01requirements.md` §6).
 | **AC-5** | Every emitted CBOM validates against the official CycloneDX 1.6 schema in CI | `test_output_cbom.py::test_every_document_shape_validates` (12 shapes × 2 modes), `::test_a_real_scan_produces_a_valid_cbom`, `test_cli.py::test_cli_json_validates_against_the_schema` |
 | **AC-6** | A new algorithm added purely as signature data is detected with zero Python changes | Partly: `test_signatures.py` covers the data path and its validation. The end-to-end contributor test (add SM4, no code change) lands with the corpus in slice 10. |
 | **AC-7** | Published evaluation report meeting the NFR-5 targets | **Not met.** Slice 10. |
+| **NFR-2** | Survives malformed input without crash or hang; per-file timeout | `test_fuzz.py` — 200 mutants per PR across 9 mutation kinds, 2,000 nightly |
 | **AC-8** | `mypy --strict`, `ruff`, tests pass on Linux and Windows; wheel installs | `.github/workflows/ci.yml` — 8 matrix legs plus a clean-env wheel install |
 
 ## What the suite deliberately does not prove

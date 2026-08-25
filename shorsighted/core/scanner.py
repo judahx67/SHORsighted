@@ -10,7 +10,8 @@ extension is the attacker's to choose and because a `.dat` that is really a DLL
 is exactly the thing an inventory should not miss.
 """
 
-from collections.abc import Iterator, Sequence
+import threading
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
 from shorsighted.core.merge import merge_findings, suppress_below
@@ -36,11 +37,16 @@ empty because nobody imported the detector that fills it.
 """
 
 
+DEFAULT_TIMEOUT = 30.0
+"""Seconds a single file may take before the scan gives up on it (NFR-2)."""
+
+
 def scan_file(
     path: Path,
     signatures: SignatureSet,
     detectors: Sequence[Detector] | None = None,
     min_confidence: float = 0.0,
+    timeout: float = DEFAULT_TIMEOUT,
 ) -> ScannedFile:
     """Analyse one file. Never raises for anything about the file's content.
 
@@ -49,6 +55,61 @@ def scan_file(
     able to say "we could not read this" rather than omitting the file and
     letting a reader infer it was clean.
     """
+    if timeout > 0:
+        return _with_timeout(
+            lambda: _scan_file(path, signatures, detectors, min_confidence),
+            timeout,
+            path,
+        )
+    return _scan_file(path, signatures, detectors, min_confidence)
+
+
+def _with_timeout(
+    work: Callable[[], ScannedFile],
+    timeout: float,
+    path: Path,
+) -> ScannedFile:
+    """Run `work`, giving up after `timeout` seconds (NFR-2).
+
+    ponytail: this stops *waiting*, it does not stop the work. Python cannot
+    interrupt a thread stuck inside a C extension, so a genuinely wedged parse
+    keeps running on a daemon thread until the process exits. What it buys is
+    the property that matters — a directory scan cannot be held hostage by one
+    file — at the cost of some leaked work in a case that should be rare.
+
+    The honest alternative is a process per file, which would isolate properly
+    and cost more than the hazard is worth at NFR-1's throughput. Revisit if the
+    fuzz corpus ever finds a real hang rather than a hypothetical one.
+    """
+    outcome: dict[str, ScannedFile | BaseException] = {}
+
+    def target() -> None:
+        try:
+            outcome["value"] = work()
+        except BaseException as exc:  # carried across the thread boundary
+            outcome["error"] = exc
+
+    thread = threading.Thread(target=target, daemon=True, name=f"scan:{path.name}")
+    thread.start()
+    thread.join(timeout)
+
+    if thread.is_alive():
+        return _errored(path, "timeout")
+    error = outcome.get("error")
+    if isinstance(error, BaseException):
+        raise error
+    result = outcome.get("value")
+    if isinstance(result, ScannedFile):
+        return result
+    return _errored(path, "no-result")
+
+
+def _scan_file(
+    path: Path,
+    signatures: SignatureSet,
+    detectors: Sequence[Detector] | None,
+    min_confidence: float,
+) -> ScannedFile:
     chosen = list(BUILTIN_DETECTORS) if detectors is None else list(detectors)
 
     try:
@@ -69,14 +130,7 @@ def scan_file(
                 min_confidence,
             )
     except PEFormatError as exc:
-        return ScannedFile(
-            path=path,
-            sha256="",
-            size=_size_or_zero(path),
-            machine="",
-            status=AnalysisStatus.ERROR,
-            error_class=exc.error_class,
-        )
+        return _errored(path, exc.error_class)
 
 
 def scan_paths(
@@ -85,13 +139,30 @@ def scan_paths(
     tool_version: str,
     detectors: Sequence[Detector] | None = None,
     min_confidence: float = 0.0,
+    timeout: float = DEFAULT_TIMEOUT,
 ) -> ScanResult:
     """Scan each path and collect the results into one report."""
-    files = tuple(scan_file(path, signatures, detectors, min_confidence) for path in paths)
+    files = tuple(scan_file(path, signatures, detectors, min_confidence, timeout) for path in paths)
     return ScanResult(
         files=files,
         tool_version=tool_version,
         signature_version=signatures.version,
+    )
+
+
+def _errored(path: Path, error_class: str) -> ScannedFile:
+    """A file we could not analyse, recorded rather than dropped (FR-3).
+
+    Size still comes from the filesystem: a reader chasing an error is better
+    served by knowing the file was 900 MB than by a zero we did not measure.
+    """
+    return ScannedFile(
+        path=path,
+        sha256="",
+        size=_size_or_zero(path),
+        machine="",
+        status=AnalysisStatus.ERROR,
+        error_class=error_class,
     )
 
 
@@ -162,6 +233,7 @@ def scan_tree(
     tool_version: str,
     detectors: Sequence[Detector] | None = None,
     min_confidence: float = 0.0,
+    timeout: float = DEFAULT_TIMEOUT,
 ) -> ScanResult:
     """Scan every PE under `root`, counting what was skipped (FR-1, US-2).
 
@@ -181,7 +253,7 @@ def scan_tree(
         if not explicit and not is_probably_pe(path):
             skipped += 1
             continue
-        files.append(scan_file(path, signatures, detectors, min_confidence))
+        files.append(scan_file(path, signatures, detectors, min_confidence, timeout))
 
     return ScanResult(
         files=tuple(files),

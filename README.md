@@ -13,7 +13,7 @@ Existing CBOM tooling reads source code. A great deal of real-world cryptography
 OpenSSL inside software nobody has the source to — invisible to every source-level scanner. That gap is the
 point of this tool.
 
-## Status: MVP, slice 8 of 12 🌱
+## Status: MVP, slice 9 of 12 🌱
 
 All three detectors work. Point it at a file or a whole install tree and it
 emits a CycloneDX 1.6 CBOM naming what it found, with evidence, offsets, and

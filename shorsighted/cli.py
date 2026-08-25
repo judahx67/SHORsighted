@@ -7,7 +7,7 @@ from pathlib import Path
 
 from shorsighted import __version__
 from shorsighted.core.model import AnalysisStatus, ScanResult
-from shorsighted.core.scanner import scan_tree
+from shorsighted.core.scanner import DEFAULT_TIMEOUT, scan_tree
 from shorsighted.detectors.base import REGISTRY, Detector
 from shorsighted.output import cbom, text
 from shorsighted.signatures.loader import load_signatures
@@ -67,6 +67,14 @@ def build_parser() -> argparse.ArgumentParser:
         "(default: 0.0, report everything)",
     )
     parser.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT,
+        metavar="SECONDS",
+        help="give up on a single file after SECONDS and record it as errored; "
+        f"0 disables (default: {DEFAULT_TIMEOUT:g})",
+    )
+    parser.add_argument(
         "--reproducible",
         action="store_true",
         help="omit the serial number and timestamp so identical input, tool and "
@@ -83,6 +91,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.path is None:
         parser.print_help()
         return EXIT_OK
+
+    if args.timeout < 0:
+        print("shorsighted: --timeout cannot be negative", file=sys.stderr)
+        return EXIT_USAGE
 
     if not 0.0 <= args.min_confidence <= 1.0:
         print(
@@ -115,6 +127,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         tool_version=__version__,
         detectors=detectors,
         min_confidence=args.min_confidence,
+        timeout=args.timeout,
     )
     rendered = _render(result, args.format, reproducible=args.reproducible)
 

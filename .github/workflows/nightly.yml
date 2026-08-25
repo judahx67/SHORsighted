@@ -1,0 +1,73 @@
+name: Nightly
+
+# The extended robustness run (test-plan §7). Deliberately separate from ci.yml:
+# a two-thousand-mutant sweep is too slow to sit in front of every PR, and a
+# failure here is a bug to triage rather than a change to block. Failures open
+# an issue instead of turning the branch red.
+#
+# The corpus build and full evaluation join this workflow in slice 10.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  fuzz:
+    name: Extended fuzz / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+
+      - name: Extended mutation sweep
+        env:
+          SHORSIGHTED_FUZZ: full
+        run: pytest tests/test_fuzz.py -q
+
+  report:
+    name: Report failures
+    needs: fuzz
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open an issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Nightly fuzz failure on $(date -u +%Y-%m-%d)" \
+            --label bug \
+            --body "The extended mutation sweep failed.
+
+          Run: $RUN_URL
+
+          The failing test prints the mutant's seed and kind. Every mutant is a
+          pure function of its seed, so reproduce locally with:
+
+          \`\`\`
+          SHORSIGHTED_FUZZ=full pytest tests/test_fuzz.py -q
+          \`\`\`
+
+          A mutant that escapes as anything but \`PEFormatError\`, or that
+          produces a \`ScannedFile\` describing bytes outside the file, is a
+          defect in \`pe/loader.py\` rather than a bad test."
