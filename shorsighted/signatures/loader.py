@@ -14,10 +14,13 @@ from typing import Any
 
 from shorsighted.signatures.schema import (
     ConstantSignature,
+    EntropySettings,
+    MaterialSignature,
     SignatureError,
     SignatureSet,
     parse_constant_signature,
     parse_import_signature,
+    parse_material_signature,
     parse_string_signature,
     validate_set,
 )
@@ -47,10 +50,14 @@ def load_signatures(directory: Path | None = None) -> SignatureSet:
         for index, raw in enumerate(_table_array(document, "string", imports_path))
     )
 
+    material, entropy = _load_material(root / "material.toml")
+
     signature_set = SignatureSet(
         imports=import_signatures,
         strings=string_signatures,
         constants=_load_constants(root),
+        material=material,
+        entropy=entropy,
         confidence=confidence,
         corroboration_bonus=corroboration_bonus,
         version=signature_version(root),
@@ -139,3 +146,45 @@ def _load_constants(root: Path) -> tuple[ConstantSignature, ...]:
             for index, raw in enumerate(_table_array(document, "signature", path))
         )
     return tuple(signatures)
+
+
+def _load_material(path: Path) -> tuple[tuple[MaterialSignature, ...], EntropySettings]:
+    """Load `material.toml`: structural markers plus the entropy knobs (FR-8).
+
+    Absent is fine. A signature directory with no material file yields a scanner
+    that makes fewer kinds of claim, which is a smaller tool rather than a
+    broken one.
+    """
+    if not path.is_file():
+        return (), EntropySettings()
+
+    document = _read_toml(path)
+    markers = tuple(
+        parse_material_signature(raw, f"{path.name}[marker #{index + 1}]")
+        for index, raw in enumerate(_table_array(document, "marker", path))
+    )
+
+    raw_entropy = document.get("entropy", {})
+    if not isinstance(raw_entropy, dict):
+        raise SignatureError(f"{path.name}: [entropy] must be a table")
+
+    defaults = EntropySettings()
+    settings = EntropySettings(
+        enabled=bool(raw_entropy.get("enabled", defaults.enabled)),
+        window=_positive_int(raw_entropy, "window", defaults.window, path),
+        min_distinct=_positive_int(raw_entropy, "min_distinct", defaults.min_distinct, path),
+        max_regions=_positive_int(raw_entropy, "max_regions", defaults.max_regions, path),
+    )
+    if settings.min_distinct > settings.window:
+        raise SignatureError(
+            f"{path.name}: min_distinct ({settings.min_distinct}) cannot exceed "
+            f"window ({settings.window}) - no region could ever match"
+        )
+    return markers, settings
+
+
+def _positive_int(mapping: dict[str, Any], key: str, default: int, path: Path) -> int:
+    value = mapping.get(key, default)
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise SignatureError(f"{path.name}: [entropy] {key} must be a positive integer")
+    return value

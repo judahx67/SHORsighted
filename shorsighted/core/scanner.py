@@ -16,6 +16,7 @@ from pathlib import Path
 from shorsighted.core.merge import merge_findings, suppress_below
 from shorsighted.core.model import AnalysisStatus, Finding, ScannedFile, ScanResult
 from shorsighted.detectors import constants as constant_detector
+from shorsighted.detectors import heuristics as heuristic_detector
 from shorsighted.detectors import imports as import_detector
 from shorsighted.detectors.base import Detector
 from shorsighted.pe import traits
@@ -25,13 +26,13 @@ from shorsighted.signatures.schema import SignatureSet
 BUILTIN_DETECTORS: tuple[Detector, ...] = (
     import_detector.DETECTOR,
     constant_detector.DETECTOR,
+    heuristic_detector.DETECTOR,
 )
 """The detectors a scan runs by default.
 
 Listed explicitly rather than read from `base.REGISTRY` so that importing this
 module is what populates the registry, instead of the registry quietly being
-empty because nobody imported the detector that fills it. Heuristics join this
-tuple in slice 8.
+empty because nobody imported the detector that fills it.
 """
 
 

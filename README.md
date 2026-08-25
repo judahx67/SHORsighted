@@ -13,14 +13,21 @@ Existing CBOM tooling reads source code. A great deal of real-world cryptography
 OpenSSL inside software nobody has the source to — invisible to every source-level scanner. That gap is the
 point of this tool.
 
-## Status: pre-alpha, slice 7 of 12 🌱
+## Status: MVP, slice 8 of 12 🌱
 
-Point it at a PE file and it emits a CycloneDX 1.6 CBOM naming the algorithms it
-finds, with evidence, offsets, and NIST quantum levels. Two detectors run: the
-import table, and **the constant tables** — so statically linked cryptography,
-which imports nothing and is invisible to every source-reading CBOM tool, is
-detected too. Every document the test suite produces is validated against the
-official 1.6 schema in CI.
+All three detectors work. Point it at a file or a whole install tree and it
+emits a CycloneDX 1.6 CBOM naming what it found, with evidence, offsets, and
+NIST quantum levels.
+
+- **imports** — dynamically linked crypto: CNG, CryptoAPI, OpenSSL, mbedTLS, libsodium
+- **constants** — statically linked crypto, found by its tables. Invisible to every
+  source-reading CBOM tool, and the reason this project exists
+- **heuristics** — embedded certificates and key material, by structure not entropy
+
+Findings that two detectors agree on are merged into one asset with combined
+evidence. Packed binaries and .NET assemblies are flagged as such rather than
+reported as clean. Every document the test suite produces is validated against
+the official CycloneDX 1.6 schema in CI.
 
 ```console
 $ shorsighted app.exe                      # CycloneDX 1.6 JSON (the contract)

@@ -118,22 +118,33 @@ def test_a_synthetic_cng_binary_reports_its_algorithms(
     assert "1 quantum-broken" in output
 
 
-def test_a_statically_linked_shape_is_not_yet_detected(
+def test_a_statically_linked_binary_is_detected(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Honest negative, kept as a test so the gap stays visible.
+    """AC-2 through the CLI, and the promise this project exists to keep.
 
-    A binary with AES constants and no crypto imports is exactly AC-2's case,
-    and the import detector cannot see it by design. This passes today by
-    finding nothing; when the constant detector lands in slice 5, it should
-    start failing and be rewritten as a positive.
+    Written in slice 3 as an honest negative - a binary with crypto tables and
+    no crypto imports, asserted to find nothing, with a note saying it should
+    start failing once the constant detector landed. It did. This is the same
+    scenario, now asserting the answer it should always have had.
     """
+    from tools.derive_constants import aes_sbox, sha2_words
+
+    tables = aes_sbox() + b"".join(w.to_bytes(4, "little") for w in sha2_words(8, 2, 32))
     image = build_pe(
-        sections=(SectionSpec(".rdata", bytes(range(256))),),
+        machine="x64",
+        sections=(
+            SectionSpec(".text", b"\x55\x8b\xec" * 200, SCN_CODE),
+            SectionSpec(".rdata", b"\x00" * 32 + tables),
+        ),
         imports=(("kernel32.dll", ("ExitProcess",)),),
     )
     assert main([str(write_pe(tmp_path, "static.exe", image)), "--format", "text"]) == EXIT_OK
-    assert "none detected" in capsys.readouterr().out
+
+    output = capsys.readouterr().out
+    assert "AES" in output
+    assert "SHA-256" in output
+    assert "constants/" in output, "the evidence should name the constant detector"
 
 
 # --- output formats and destinations (FR-11, FR-15, NFR-6) ----------------

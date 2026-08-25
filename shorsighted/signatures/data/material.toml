@@ -1,0 +1,151 @@
+# Embedded cryptographic material: certificates and keys (FR-8).
+#
+# These signatures make a different KIND of claim from every other file in this
+# directory. An algorithm signature says "this binary can do AES". These say
+# "there is a certificate at offset 0x4120". Both are useful; neither
+# substitutes for the other, and D-5 keeps them apart so a low-precision
+# heuristic can never dilute the headline algorithm precision.
+#
+# asset_type is therefore restricted to `certificate` or
+# `related-crypto-material`, never `algorithm`. The loader enforces it.
+#
+# On what is NOT here: the tool reports that key material exists and where. It
+# never extracts it. A CBOM containing key bytes is itself a leak, which is
+# non-goal 9 and the reason occurrences carry offsets and nothing else.
+
+# ---------------------------------------------------------------------------
+# PEM banners
+#
+# Text markers, so near-free precision (D-7): nothing accidentally contains
+# "-----BEGIN CERTIFICATE-----". They are matched as plain ASCII because that
+# is how they appear whether the surrounding file is a config blob, a resource,
+# or a string literal in .rdata.
+# ---------------------------------------------------------------------------
+
+[[marker]]
+id          = "pem-certificate"
+class       = "der-structure"
+text        = "-----BEGIN CERTIFICATE-----"
+asset_type  = "certificate"
+family      = "X.509"
+description = "PEM-encoded X.509 certificate"
+
+[[marker]]
+id          = "pem-trusted-certificate"
+class       = "der-structure"
+text        = "-----BEGIN TRUSTED CERTIFICATE-----"
+asset_type  = "certificate"
+family      = "X.509"
+description = "PEM-encoded trusted X.509 certificate"
+
+[[marker]]
+id          = "pem-private-key"
+class       = "der-structure"
+text        = "-----BEGIN PRIVATE KEY-----"
+asset_type  = "related-crypto-material"
+family      = "PKCS#8"
+description = "PKCS#8 private key baked into the binary"
+
+[[marker]]
+id          = "pem-rsa-private-key"
+class       = "der-structure"
+text        = "-----BEGIN RSA PRIVATE KEY-----"
+asset_type  = "related-crypto-material"
+family      = "RSA"
+description = "PKCS#1 RSA private key baked into the binary"
+
+[[marker]]
+id          = "pem-ec-private-key"
+class       = "der-structure"
+text        = "-----BEGIN EC PRIVATE KEY-----"
+asset_type  = "related-crypto-material"
+family      = "ECC"
+description = "SEC1 elliptic-curve private key baked into the binary"
+
+[[marker]]
+id          = "pem-encrypted-private-key"
+class       = "der-structure"
+text        = "-----BEGIN ENCRYPTED PRIVATE KEY-----"
+asset_type  = "related-crypto-material"
+family      = "PKCS#8"
+description = "Encrypted PKCS#8 private key"
+
+[[marker]]
+id          = "pem-openssh-private-key"
+class       = "der-structure"
+text        = "-----BEGIN OPENSSH PRIVATE KEY-----"
+asset_type  = "related-crypto-material"
+family      = "OpenSSH"
+description = "OpenSSH private key baked into the binary"
+
+[[marker]]
+id          = "pem-public-key"
+class       = "der-structure"
+text        = "-----BEGIN PUBLIC KEY-----"
+asset_type  = "related-crypto-material"
+family      = "SubjectPublicKeyInfo"
+description = "PEM-encoded public key"
+
+[[marker]]
+id          = "pem-dh-parameters"
+class       = "der-structure"
+text        = "-----BEGIN DH PARAMETERS-----"
+asset_type  = "related-crypto-material"
+family      = "DH"
+description = "Diffie-Hellman parameters"
+
+[[marker]]
+id          = "pem-certificate-request"
+class       = "der-structure"
+text        = "-----BEGIN CERTIFICATE REQUEST-----"
+asset_type  = "certificate"
+family      = "PKCS#10"
+description = "Certificate signing request"
+
+# ---------------------------------------------------------------------------
+# DER structures
+#
+# A bare `30 82` (SEQUENCE, two-byte length) occurs constantly in ordinary
+# binary data, so the marker alone is worthless. `structure` names a validator
+# the detector runs at every hit; only a hit that survives it is reported. This
+# is what makes DER detection structural rather than entropy-based (D-7).
+# ---------------------------------------------------------------------------
+
+[[marker]]
+id          = "der-x509-certificate"
+class       = "der-structure"
+marker      = "3082"
+structure   = "x509-certificate"
+asset_type  = "certificate"
+family      = "X.509"
+description = "DER-encoded X.509 certificate"
+
+[[marker]]
+id          = "der-rsa-private-key"
+class       = "der-structure"
+marker      = "3082"
+structure   = "rsa-private-key"
+asset_type  = "related-crypto-material"
+family      = "RSA"
+description = "DER-encoded PKCS#1 RSA private key"
+
+# ---------------------------------------------------------------------------
+# High-entropy regions
+#
+# The weakest claim this tool makes, and it is kept because FR-8 asks for it and
+# NFR-5 sets no minimum bar for it - only that it be measured honestly.
+#
+# It cannot distinguish an embedded symmetric key from compressed data, and it
+# will not pretend to. That is the documented false positive, asserted AS a
+# false positive in the evaluation rather than silenced.
+#
+# Widen `window` or raise `min_distinct` if it is too noisy for your estate;
+# set `enabled = false` to turn it off entirely. These are the knobs slice 10's
+# corpus is most likely to move.
+# ---------------------------------------------------------------------------
+
+[entropy]
+enabled      = true
+window       = 32
+min_distinct = 30
+max_regions  = 4

@@ -16,7 +16,25 @@ true.
 
 from collections.abc import Sequence
 
-from shorsighted.core.model import AnalysisStatus, Finding, ScannedFile, ScanResult
+from shorsighted.core.model import (
+    AnalysisStatus,
+    AssetType,
+    Finding,
+    ScannedFile,
+    ScanResult,
+)
+
+_KIND = {
+    AssetType.ALGORITHM: "algorithm",
+    AssetType.CERTIFICATE: "cert",
+    AssetType.RELATED_MATERIAL: "material",
+}
+"""What kind of claim a row makes.
+
+Without this column a certificate appears under a heading that says ALGORITHM,
+which reads as "this binary performs X.509" - a category error, and exactly the
+conflation D-5 exists to prevent.
+"""
 
 _STATUS_NOTE = {
     AnalysisStatus.DEGRADED_PACKED: (
@@ -60,7 +78,7 @@ def _render_file(scanned: ScannedFile) -> str:
 
 def _render_table(findings: Sequence[Finding]) -> list[str]:
     rows = [_row(finding) for finding in _sorted(findings)]
-    headers = ("ALGORITHM", "PRIMITIVE", "QUANTUM", "CONF", "EVIDENCE")
+    headers = ("ASSET", "KIND", "PRIMITIVE", "QUANTUM", "CONF", "EVIDENCE")
     widths = [
         max(len(headers[column]), *(len(row[column]) for row in rows))
         for column in range(len(headers))
@@ -77,9 +95,10 @@ def _render_table(findings: Sequence[Finding]) -> list[str]:
     ]
 
 
-def _row(finding: Finding) -> tuple[str, str, str, str, str]:
+def _row(finding: Finding) -> tuple[str, str, str, str, str, str]:
     return (
         finding.algorithm or finding.family or "unknown",
+        _KIND[finding.asset_type],
         finding.primitive or "-",
         _quantum(finding),
         f"{finding.confidence:.2f}",

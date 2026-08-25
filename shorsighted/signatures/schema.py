@@ -150,6 +150,55 @@ class ConstantSignature:
     description: str = ""
 
 
+MATERIAL_CLASSES = frozenset({"der-structure", "entropy-region"})
+
+
+@dataclass(frozen=True)
+class MaterialSignature:
+    """A marker for embedded cryptographic *material* from `material.toml` (FR-8).
+
+    A different kind of claim from every other signature here. An algorithm
+    signature says "this binary can do AES"; this says "there is a certificate
+    at offset 0x4120". Both are useful, neither substitutes for the other, and
+    conflating them would let a low-precision heuristic dilute the headline
+    algorithm numbers — which is exactly what D-5 forbids.
+    """
+
+    id: str
+    signature_class: str
+
+    marker: bytes
+    """Literal bytes that begin the structure. For PEM this is the whole
+    `-----BEGIN ...-----` banner; for DER it is the tag and length prefix that
+    the structural validator then has to confirm."""
+
+    asset_type: str
+    """`certificate` or `related-crypto-material`. Never `algorithm` (FR-8)."""
+
+    structure: str | None = None
+    """Name of the structural validator to run at each marker hit, if any.
+    Without one the marker alone is the claim, which is right for PEM banners
+    and far too weak for a bare DER tag byte."""
+
+    family: str | None = None
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class EntropySettings:
+    """Parameters for the high-entropy region heuristic (FR-8).
+
+    Data rather than code because these are the knobs slice 10's corpus is most
+    likely to move, and because a user who finds the heuristic too noisy for
+    their estate should be able to widen the window without a release.
+    """
+
+    enabled: bool = True
+    window: int = 32
+    min_distinct: int = 30
+    max_regions: int = 4
+
+
 @dataclass(frozen=True)
 class SignatureSet:
     """Everything the detectors need, already validated."""
@@ -157,6 +206,8 @@ class SignatureSet:
     imports: tuple[ImportSignature, ...] = ()
     strings: tuple[StringSignature, ...] = ()
     constants: tuple[ConstantSignature, ...] = ()
+    material: tuple[MaterialSignature, ...] = ()
+    entropy: EntropySettings = field(default_factory=EntropySettings)
     confidence: dict[str, float] = field(default_factory=dict)
     corroboration_bonus: float = 0.0
 
@@ -285,10 +336,11 @@ def parse_string_signature(raw: dict[str, Any], where: str) -> StringSignature:
 
 def validate_set(signature_set: SignatureSet) -> None:
     """Whole-set checks that no single signature can make on its own."""
-    every: list[ImportSignature | StringSignature | ConstantSignature] = [
+    every: list[ImportSignature | StringSignature | ConstantSignature | MaterialSignature] = [
         *signature_set.imports,
         *signature_set.strings,
         *signature_set.constants,
+        *signature_set.material,
     ]
 
     seen: dict[str, str] = {}
@@ -405,3 +457,34 @@ def _expand_words(raw: dict[str, Any], where: str) -> tuple[bytes, ...]:
     # A palindromic table can expand identically in both orders; searching the
     # same bytes twice would double-report it.
     return tuple(dict.fromkeys(expanded))
+
+
+def parse_material_signature(raw: dict[str, Any], where: str) -> MaterialSignature:
+    signature_class = _validate_class(raw, where, MATERIAL_CLASSES)
+
+    asset_type = _require_str(raw, "asset_type", where)
+    if asset_type not in {"certificate", "related-crypto-material"}:
+        raise SignatureError(
+            f"{where}: asset_type must be 'certificate' or 'related-crypto-material' "
+            f"(never 'algorithm' - FR-8), got {asset_type!r}"
+        )
+
+    if "marker" in raw:
+        marker = _parse_hex(_require_str(raw, "marker", where), where, "marker")
+    elif "text" in raw:
+        marker = _require_str(raw, "text", where).encode("ascii")
+    else:
+        raise SignatureError(f"{where}: needs either 'marker' (hex) or 'text' (ascii)")
+
+    if not marker:
+        raise SignatureError(f"{where}: marker must not be empty")
+
+    return MaterialSignature(
+        id=_require_str(raw, "id", where),
+        signature_class=signature_class,
+        marker=marker,
+        asset_type=asset_type,
+        structure=_optional_str(raw, "structure", where),
+        family=_optional_str(raw, "family", where),
+        description=raw.get("description", ""),
+    )
