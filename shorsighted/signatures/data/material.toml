@@ -132,20 +132,38 @@ description = "DER-encoded PKCS#1 RSA private key"
 # ---------------------------------------------------------------------------
 # High-entropy regions
 #
-# The weakest claim this tool makes, and it is kept because FR-8 asks for it and
-# NFR-5 sets no minimum bar for it - only that it be measured honestly.
+# The weakest claim this tool makes, kept because FR-8 asks for it and NFR-5
+# sets no minimum bar for it - only that it be measured honestly.
 #
-# It cannot distinguish an embedded symmetric key from compressed data, and it
-# will not pretend to. That is the documented false positive, asserted AS a
-# false positive in the evaluation rather than silenced.
+# SO IT WAS MEASURED, AND IT LOST. On the slice 10 corpus: 4 true positives
+# against 100 false positives, a precision of 0.038. It fired on all 104
+# binaries including every negative sample. A detector that fires on everything
+# carries no information, and at that rate it would drown three detectors that
+# score 1.000 in noise it cannot defend.
 #
-# Widen `window` or raise `min_distinct` if it is too noisy for your estate;
-# set `enabled = false` to turn it off entirely. These are the knobs slice 10's
-# corpus is most likely to move.
+# The false positives were not what the design expected either. The docstring in
+# detectors/heuristics.py guessed compressed data; the corpus says the dominant
+# source is IEEE-754 double-precision constant tables in the C math library -
+# `pow`, `exp`, `log` coefficients, which are near-uniform at 32-byte
+# granularity and present in essentially every compiled binary.
+#
+# So it ships OFF. Not deleted, not quietly weakened, not left on with an
+# apology in the docs: turned off, with the number that turned it off written
+# above it. It found the one real key in the corpus (embedded_raw_key), so it is
+# not useless - it is unusable at this signal-to-noise ratio, which is a
+# different thing and a fixable one.
+#
+# Turn it on with `enabled = true` if you would rather triage the noise than
+# miss a bare key. Widening `window` past 32 or raising `min_distinct` toward 32
+# trades recall for precision; note that a random 32-byte key averages about 30
+# distinct bytes, so 32 rejects roughly six keys in seven.
+#
+# See eval/report.md for the full table and LIMITATIONS.md for what would have
+# to change to make this worth turning back on.
 # ---------------------------------------------------------------------------
 
 [entropy]
-enabled      = true
+enabled      = false
 window       = 32
 min_distinct = 30
 max_regions  = 4

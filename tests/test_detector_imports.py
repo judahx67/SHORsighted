@@ -45,7 +45,7 @@ def test_openssl_symbol_names_its_algorithm(signatures: SignatureSet) -> None:
     """AC-2's neighbour: a symbol like EVP_aes_256_gcm can only mean AES, so
     the finding is specific rather than a provider shrug."""
     found = scan(build_pe(imports=(("libcrypto-3-x64.dll", ("EVP_aes_256_gcm",)),)), signatures)
-    assert found["AES"] == pytest.approx(0.95)
+    assert found["AES"] == pytest.approx(signatures.confidence_for("import-specific"))
 
 
 @pytest.mark.parametrize(
@@ -108,7 +108,7 @@ def test_cng_import_alone_claims_the_provider_not_an_algorithm(
     """BCryptEncrypt is the same symbol whether the caller wants AES or RSA.
     Claiming an algorithm here would be a fabrication."""
     found = scan(build_pe(imports=(("bcrypt.dll", ("BCryptEncrypt",)),)), signatures)
-    assert found == {"CNG": pytest.approx(0.90)}
+    assert found == {"CNG": pytest.approx(signatures.confidence_for("import-generic"))}
 
 
 def test_utf16_string_without_a_provider_import_is_not_reported(
@@ -133,7 +133,9 @@ def test_provider_plus_string_names_the_algorithm(signatures: SignatureSet) -> N
     found = scan(image, signatures)
     assert {"AES", "SHA-256", "RSA", "CNG"} <= set(found)
     # Promoted above the bare utf16-string class by the corroborating import.
-    assert found["AES"] == pytest.approx(0.75)
+    assert found["AES"] == pytest.approx(
+        signatures.confidence_for("utf16-string") + signatures.corroboration_bonus
+    )
     assert found["AES"] > signatures.confidence_for("utf16-string")
 
 
@@ -160,7 +162,9 @@ def test_string_match_requires_the_null_terminator(signatures: SignatureSet) -> 
         sections=(SectionSpec(".rdata", "AESKEY".encode("utf-16-le")),),
         imports=(("bcrypt.dll", ("BCryptEncrypt",)),),
     )
-    assert scan(image, signatures) == {"CNG": pytest.approx(0.90)}
+    assert scan(image, signatures) == {
+        "CNG": pytest.approx(signatures.confidence_for("import-generic"))
+    }
 
 
 def test_string_offsets_are_recorded(signatures: SignatureSet) -> None:
@@ -190,7 +194,9 @@ def test_capi_provider_unlocks_the_same_strings(signatures: SignatureSet) -> Non
         sections=(SectionSpec(".rdata", wide("AES")),),
         imports=(("advapi32.dll", ("CryptCreateHash",)),),
     )
-    assert scan(image, signatures) == {"CryptoAPI": pytest.approx(0.90)}
+    assert scan(image, signatures) == {
+        "CryptoAPI": pytest.approx(signatures.confidence_for("import-generic"))
+    }
 
 
 # --- the registry ---------------------------------------------------------
@@ -263,3 +269,70 @@ def test_corroboration_bonus_is_capped_at_the_ceiling() -> None:
         imports=(("bcrypt.dll", ("BCryptEncrypt",)),),
     )
     assert scan(image, custom)["AES"] == pytest.approx(0.99)
+
+
+# --- discardable sections (the slice 10 corpus finding) --------------------
+
+
+SCN_DISCARDABLE = 0x42000040
+"""IMAGE_SCN_MEM_DISCARDABLE | initialized data — the flags on `.reloc` and on
+the `.debug_*` sections a DWARF build emits."""
+
+
+def test_a_wide_string_in_a_discardable_section_is_not_evidence(
+    signatures: SignatureSet,
+) -> None:
+    """The false positive the corpus found, pinned so it cannot come back.
+
+    `L"DH"` is six bytes with its terminator, and those six bytes turn up by
+    chance in DWARF debug data in essentially every debug build — which handed a
+    confident "this binary does Diffie-Hellman" to twenty-three samples that do
+    no such thing.
+
+    A CNG algorithm name is read at runtime by BCryptOpenAlgorithmProvider, so
+    it cannot live in a section the loader is free to discard. A match there is
+    a coincidence by construction, and this is what keeps short algorithm names
+    safe to ship as signatures.
+    """
+    image = build_pe(
+        sections=(
+            SectionSpec(".text", b"\xc3" * 64, SCN_CODE),
+            SectionSpec("/4", wide("DH", "AES", "RSA"), SCN_DISCARDABLE),
+        ),
+        imports=(("bcrypt.dll", ("BCryptEncrypt",)),),
+    )
+    assert scan(image, signatures) == {
+        "CNG": pytest.approx(signatures.confidence_for("import-generic"))
+    }
+
+
+def test_the_same_string_in_rdata_is_evidence(signatures: SignatureSet) -> None:
+    """Guards the test above from passing because the strings were never
+    matchable in the first place."""
+    image = build_pe(
+        sections=(
+            SectionSpec(".text", b"\xc3" * 64, SCN_CODE),
+            SectionSpec(".rdata", wide("DH", "AES", "RSA")),
+        ),
+        imports=(("bcrypt.dll", ("BCryptEncrypt",)),),
+    )
+    assert set(scan(image, signatures)) == {"CNG", "DH", "AES", "RSA"}
+
+
+def test_string_offsets_are_file_offsets_not_section_offsets(
+    signatures: SignatureSet,
+) -> None:
+    """The scan walks sections now, so an off-by-a-section-header here would
+    point every reader at the wrong bytes."""
+    payload = b"\x00" * 128 + wide("AES")
+    image = build_pe(
+        sections=(
+            SectionSpec(".text", b"\xc3" * 64, SCN_CODE),
+            SectionSpec(".rdata", payload),
+        ),
+        imports=(("bcrypt.dll", ("BCryptEncrypt",)),),
+    )
+    findings = DETECTOR.scan(load_bytes(image), signatures)
+    aes = next(f for f in findings if f.family == "AES")
+    offset = aes.evidence[0].offsets[0]
+    assert image[offset : offset + 8] == wide("AES")

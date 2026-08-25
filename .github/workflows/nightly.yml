@@ -5,7 +5,8 @@ name: Nightly
 # failure here is a bug to triage rather than a change to block. Failures open
 # an issue instead of turning the branch red.
 #
-# The corpus build and full evaluation join this workflow in slice 10.
+# The corpus build and evaluation live in eval.yml, which runs weekly and on
+# every change to signatures, detectors, or the corpus.
 
 on:
   schedule:

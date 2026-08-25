@@ -50,7 +50,7 @@ def test_a_binary_with_no_crypto_imports_still_reports_aes(signatures: Signature
     statically linked implementation imports nothing, so the import table says
     "no cryptography" and the tables say otherwise."""
     found = scan(image_with(FILLER + SBOX + FILLER), signatures)
-    assert found["AES"] == pytest.approx(0.90)
+    assert found["AES"] == pytest.approx(signatures.confidence_for("unique-table"))
 
 
 def test_aes_and_sha256_are_found_together(signatures: SignatureSet) -> None:

@@ -62,7 +62,7 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PTH", "C4"]
 python_version = "3.11"
 strict = true
 warn_unreachable = true
-files = ["shorsighted", "tests"]
+files = ["shorsighted", "tests", "corpus", "eval", "tools"]
 
 [[tool.mypy.overrides]]
 module = "pefile.*"

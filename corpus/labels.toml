@@ -1,0 +1,237 @@
+# Ground truth for the evaluation corpus (test-plan §4, AC-7).
+#
+# Every label here comes from the source in corpus/src/ or from a direct byte
+# search of the built binary - never from running the tool. A corpus labelled by
+# the thing being measured measures nothing.
+#
+# Three fields per sample:
+#
+#   truth    Cryptography genuinely present in the binary. Ground truth for
+#            precision (anything reported that is not here is a false positive)
+#            and for overall recall.
+#   expect   What each detector is currently expected to report. Ground truth
+#            for per-detector recall, and a regression tripwire: if a build
+#            stops matching its expectations, the eval says so by name.
+#   kind     positive | negative | defeat. Defeat samples have real `truth` and
+#            empty `expect` - they are the things we know we miss, measured
+#            rather than omitted.
+#
+# `truth` minus `expect` is the honest gap. It is meant to be non-empty.
+
+# ---------------------------------------------------------------------------
+# Toolchain contribution
+#
+# Cryptography the build toolchain links in whether the program asked for it or
+# not. Verified by searching the built binaries for the literal bytes, not by
+# scanning them: "expand 32-byte k" sits in .rdata of every x86_64 debug build
+# zig produces, from its own runtime.
+#
+# This is not an inconvenience to be labelled around. It is the thesis: your
+# binary contains cryptography your source never mentions, which is why a CBOM
+# has to be computed from the binary. Samples inherit these families as truth
+# for the configurations listed.
+# ---------------------------------------------------------------------------
+
+[toolchain]
+"x64-O0" = ["ChaCha20"]
+
+# ---------------------------------------------------------------------------
+# Positives: dynamically linked (import detector, AC-1)
+# ---------------------------------------------------------------------------
+
+[[sample]]
+source = "cng_aes_gcm"
+kind = "positive"
+truth = ["CNG", "AES"]
+expect = { imports = ["CNG", "AES"] }
+
+[[sample]]
+source = "cng_sha256"
+kind = "positive"
+truth = ["CNG", "SHA-2"]
+expect = { imports = ["CNG", "SHA-2"] }
+
+[[sample]]
+source = "cng_rsa"
+kind = "positive"
+truth = ["CNG", "RSA", "SHA-2"]
+expect = { imports = ["CNG", "RSA", "SHA-2"] }
+note = "Signs with RSA-PKCS1 over SHA-256, so both algorithm strings are present."
+
+[[sample]]
+source = "cng_ecdsa_p256"
+kind = "positive"
+truth = ["CNG", "ECDSA"]
+expect = { imports = ["CNG", "ECDSA"] }
+
+[[sample]]
+source = "capi_md5"
+kind = "positive"
+truth = ["CryptoAPI", "MD5"]
+expect = { imports = ["CryptoAPI"] }
+note = """MD5 is really used and really undetectable here: CALG_MD5 is a 32-bit
+integer compiled into an instruction, not a string in .rdata. The legacy
+CryptoAPI names its algorithms in a way import analysis cannot read, and this
+sample is where that costs us recall."""
+
+[[sample]]
+source = "capi_rc4"
+kind = "positive"
+truth = ["CryptoAPI", "RC4", "SHA-1"]
+expect = { imports = ["CryptoAPI"] }
+note = "Same integer-constant limitation as capi_md5."
+
+# ---------------------------------------------------------------------------
+# Positives: statically linked (constant detector, AC-2 - the differentiator)
+# ---------------------------------------------------------------------------
+
+[[sample]]
+source = "static_aes"
+kind = "positive"
+truth = ["AES"]
+expect = { constants = ["AES"] }
+
+[[sample]]
+source = "static_sha256"
+kind = "positive"
+truth = ["SHA-2"]
+expect = { constants = ["SHA-2"] }
+
+[[sample]]
+source = "static_sha512"
+kind = "positive"
+truth = ["SHA-2"]
+expect = { constants = ["SHA-2"] }
+
+[[sample]]
+source = "static_md5"
+kind = "positive"
+truth = ["MD5"]
+expect = { constants = ["MD5"] }
+
+[[sample]]
+source = "static_sha1"
+kind = "positive"
+truth = ["SHA-1"]
+expect = { constants = ["SHA-1"] }
+
+[[sample]]
+source = "static_chacha20"
+kind = "positive"
+truth = ["ChaCha20"]
+expect = { constants = ["ChaCha20"] }
+
+[[sample]]
+source = "static_keccak"
+kind = "positive"
+truth = ["SHA-3"]
+expect = { constants = ["SHA-3"] }
+
+[[sample]]
+source = "static_p256"
+kind = "positive"
+truth = ["ECC"]
+expect = { constants = ["ECC"] }
+
+# ---------------------------------------------------------------------------
+# Positives: embedded material (heuristic detector, AC-3)
+# ---------------------------------------------------------------------------
+
+[[sample]]
+source = "embedded_pem_cert"
+kind = "positive"
+truth = ["X.509"]
+expect = { heuristics = ["X.509"] }
+
+[[sample]]
+source = "embedded_der_cert"
+kind = "positive"
+truth = ["X.509"]
+expect = { heuristics = ["X.509"] }
+note = "No banner text - the only signal is the DER structure itself."
+
+[[sample]]
+source = "embedded_pem_key"
+kind = "positive"
+truth = ["PKCS#8", "RSA"]
+expect = { heuristics = ["PKCS#8", "RSA"] }
+
+[[sample]]
+source = "embedded_raw_key"
+kind = "positive"
+truth = ["unidentified"]
+expect = { heuristics = ["unidentified"] }
+note = """A bare 32-byte key with no structure at all. The only sample the
+entropy heuristic can legitimately claim, which makes it the entire numerator
+of that heuristic's recall."""
+
+# ---------------------------------------------------------------------------
+# Negatives
+# ---------------------------------------------------------------------------
+
+[[sample]]
+source = "negative_hello"
+kind = "negative"
+truth = []
+expect = {}
+
+[[sample]]
+source = "negative_crc32"
+kind = "negative"
+truth = []
+expect = {}
+note = "The confusables suppressor's reason for existing. A CRC-32 table is not cryptography."
+
+[[sample]]
+source = "negative_tables"
+kind = "negative"
+truth = []
+expect = {}
+note = "Base64 alphabet, fixed-point sine table, UTF-8 length table. Table-driven is not cryptographic."
+
+[[sample]]
+source = "negative_entropy_blob"
+kind = "negative"
+truth = []
+expect = {}
+note = "4 KB of near-uniform noise that is not a key. The entropy heuristic's designed-in false positive."
+
+# ---------------------------------------------------------------------------
+# Defeat set: real cryptography we do not find (feeds LIMITATIONS.md)
+# ---------------------------------------------------------------------------
+
+[[sample]]
+source = "defeat_runtime_sbox"
+kind = "defeat"
+truth = ["AES"]
+expect = {}
+note = """The S-box is computed at startup from the GF(2^8) inverse, so the
+table is never in the file. Static byte analysis has nothing to match. Needs a
+disassembly-based detector, which is a much larger tool."""
+
+[[sample]]
+source = "defeat_masked_sbox"
+kind = "defeat"
+truth = ["AES"]
+expect = {}
+note = """The S-box is stored XOR-masked with one byte and unmasked at startup.
+The cheapest possible evasion, and it defeats every byte pattern we ship."""
+
+[[sample]]
+source = "defeat_p256_limbs"
+kind = "defeat"
+truth = ["ECC"]
+expect = {}
+note = """P-256 stored as little-endian 64-bit limbs instead of an octet string.
+Fixable - expand curve patterns into limb layouts the way word tables already
+are - and recorded until it is."""
+
+[[sample]]
+source = "defeat_folded_sigma"
+kind = "defeat"
+truth = ["ChaCha20"]
+expect = { constants = ["ChaCha20"] }
+expect_by_config = { "x86-O2" = {}, "x64-O2" = {} }
+note = """No evasion at all: just -O2. The sixteen-byte ChaCha sigma becomes
+four immediate operands and leaves the file entirely. Short constants are
+fragile in a way a 256-byte S-box is not, and this measures how fragile."""

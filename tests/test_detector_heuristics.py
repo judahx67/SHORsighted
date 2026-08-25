@@ -9,6 +9,7 @@ structure) rather than pretending it is accurate.
 The known false positive is asserted as a false positive rather than silenced.
 """
 
+import dataclasses
 import os
 
 import pytest
@@ -28,6 +29,31 @@ LOW_ENTROPY = b"\x00\x01\x02\x03" * 64
 @pytest.fixture(scope="module")
 def signatures() -> SignatureSet:
     return load_signatures()
+
+
+@pytest.fixture(scope="module")
+def noisy(signatures: SignatureSet) -> SignatureSet:
+    """The shipped signatures with the entropy heuristic switched back on.
+
+    It ships off: the slice 10 corpus measured it at 4 true positives against
+    100 false ones, and a detector that fires on every binary carries no
+    information. The behaviour is still supported and still has to be correct
+    for anyone who turns it on, so the tests below exercise it explicitly rather
+    than inheriting a default that would make them pass vacuously.
+    """
+    return dataclasses.replace(
+        signatures, entropy=dataclasses.replace(signatures.entropy, enabled=True)
+    )
+
+
+def test_entropy_ships_disabled(signatures: SignatureSet) -> None:
+    """The corpus turned this off and it must stay off until it is fixed.
+
+    A regression here would put a 0.038-precision heuristic in front of every
+    user by default, which is the one change in this project that could turn
+    the headline precision into a lie.
+    """
+    assert signatures.entropy.enabled is False
 
 
 def der_certificate(body_size: int = 512) -> bytes:
@@ -157,14 +183,14 @@ def test_no_finding_carries_key_bytes(signatures: SignatureSet) -> None:
 
 
 def test_high_entropy_data_is_reported_as_unidentified_material(
-    signatures: SignatureSet,
+    noisy: SignatureSet,
 ) -> None:
-    found = scan(image_with(LOW_ENTROPY + os.urandom(512) + LOW_ENTROPY), signatures)
+    found = scan(image_with(LOW_ENTROPY + os.urandom(512) + LOW_ENTROPY), noisy)
     assert found["unidentified"] is AssetType.RELATED_MATERIAL
 
 
 def test_compressed_data_is_the_documented_false_positive(
-    signatures: SignatureSet,
+    noisy: SignatureSet,
 ) -> None:
     """Asserted AS a false positive rather than silenced (test-plan §2).
 
@@ -175,23 +201,23 @@ def test_compressed_data_is_the_documented_false_positive(
     import zlib
 
     compressed = zlib.compress(os.urandom(4096), level=9)
-    found = scan(image_with(LOW_ENTROPY + compressed), signatures)
+    found = scan(image_with(LOW_ENTROPY + compressed), noisy)
     assert "unidentified" in found, "the known false positive should still fire"
 
 
-def test_entropy_findings_are_capped(signatures: SignatureSet) -> None:
-    findings = DETECTOR.scan(load_bytes(image_with(os.urandom(8192))), signatures)
+def test_entropy_findings_are_capped(noisy: SignatureSet) -> None:
+    findings = DETECTOR.scan(load_bytes(image_with(os.urandom(8192))), noisy)
     entropy = next(f for f in findings if f.family == "unidentified")
-    assert len(entropy.evidence[0].offsets) <= signatures.entropy.max_regions
+    assert len(entropy.evidence[0].offsets) <= noisy.entropy.max_regions
 
 
 def test_entropy_does_not_re_report_the_inside_of_a_certificate(
-    signatures: SignatureSet,
+    noisy: SignatureSet,
 ) -> None:
     """A certificate is full of exactly the near-uniform data this heuristic
     looks for. Naming the same bytes twice tells a reader nothing."""
     findings = DETECTOR.scan(
-        load_bytes(image_with(LOW_ENTROPY + der_certificate(1024) + LOW_ENTROPY)), signatures
+        load_bytes(image_with(LOW_ENTROPY + der_certificate(1024) + LOW_ENTROPY)), noisy
     )
     families = {f.family for f in findings}
     assert "X.509" in families
@@ -199,7 +225,7 @@ def test_entropy_does_not_re_report_the_inside_of_a_certificate(
 
 
 def test_executable_sections_are_not_scanned_for_entropy(
-    signatures: SignatureSet,
+    noisy: SignatureSet,
 ) -> None:
     """Compiled code is high-entropy by the standards of prose. Scanning .text
     would produce noise proportional to binary size."""
@@ -207,7 +233,7 @@ def test_executable_sections_are_not_scanned_for_entropy(
         sections=(SectionSpec(".text", os.urandom(8192), SCN_CODE),),
         imports=(("kernel32.dll", ("ExitProcess",)),),
     )
-    assert "unidentified" not in scan(image, signatures)
+    assert "unidentified" not in scan(image, noisy)
 
 
 def test_entropy_can_be_switched_off_in_data() -> None:
@@ -228,11 +254,11 @@ def test_entropy_window_is_configurable() -> None:
     assert DETECTOR.scan(load_bytes(image_with(LOW_ENTROPY * 4)), strict) == []
 
 
-def test_entropy_confidence_is_the_lowest_class(signatures: SignatureSet) -> None:
-    findings = DETECTOR.scan(load_bytes(image_with(os.urandom(2048))), signatures)
+def test_entropy_confidence_is_the_lowest_class(noisy: SignatureSet) -> None:
+    findings = DETECTOR.scan(load_bytes(image_with(os.urandom(2048))), noisy)
     entropy = next(f for f in findings if f.family == "unidentified")
-    assert entropy.confidence == signatures.confidence_for("entropy-region")
-    assert entropy.confidence < signatures.confidence_for("der-structure")
+    assert entropy.confidence == noisy.confidence_for("entropy-region")
+    assert entropy.confidence < noisy.confidence_for("der-structure")
 
 
 # --- wiring ---------------------------------------------------------------
@@ -263,8 +289,8 @@ def test_entropy_does_not_re_report_a_known_constant_table(
 
 
 def test_entropy_still_fires_on_data_that_is_not_a_known_table(
-    signatures: SignatureSet,
+    noisy: SignatureSet,
 ) -> None:
     """Guards the test above from passing by disabling the heuristic entirely."""
-    found = scan(image_with(LOW_ENTROPY + os.urandom(512) + LOW_ENTROPY), signatures)
+    found = scan(image_with(LOW_ENTROPY + os.urandom(512) + LOW_ENTROPY), noisy)
     assert "unidentified" in found

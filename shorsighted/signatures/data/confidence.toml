@@ -1,45 +1,77 @@
 # Per-class confidence (design §4).
 #
-# THESE ARE PLACEHOLDERS. Every value below is a guess, and each one is
-# supposed to be replaced in slice 10 by the *measured precision of that class
-# on the corpus*, bucketed to 0.05 (test-plan §5). That is why confidence lives
-# in data rather than in Python: it is a measurement, and measurements get
-# retaken. Whenever signatures change, the eval re-runs and these move.
+# CALIBRATED. Every value here is the lower bound of the 95% Wilson interval on
+# that class's measured precision over the corpus in `corpus/`, bucketed to
+# 0.05. Regenerate with `python -m eval.run`; `python -m eval.run --check` fails
+# when this file and the corpus disagree, which is what keeps a signature change
+# from quietly invalidating a number.
 #
-# Until that happens, treat every number here as unearned. The README must not
-# quote them as if they meant anything yet.
+# The bound rather than the ratio, deliberately. Several classes scored a clean
+# 1.000 on the corpus, and shipping 1.00 would have the tool claim certainty
+# about a binary it did not build. The Wilson bound reads 50/50 as 0.93 and
+# 20/20 as 0.84, which is what those sample sizes actually support: the way to
+# ship a higher number is to measure more binaries.
+#
+# Ceiling 0.95, floor 0.05. See `eval/report.md` for the counts behind each row
+# and `LIMITATIONS.md` for what the corpus does not cover - these are measured
+# against *our* built samples, which is optimistic for the wild.
 
 [classes]
 
-# An import that names its algorithm: EVP_aes_256_gcm can only be AES. The
-# remaining error is linkage without use — the code is present but never called
-# — which is exactly why FR-13 says findings mean evidence of presence and
-# never proof of use.
-import-specific = 0.95
+# An import that names its algorithm: EVP_aes_256_gcm can only be AES.
+#
+# NOT MEASURED. The corpus has no real static OpenSSL, mbedTLS, or libsodium
+# build to link against, so no sample exercises this class. The value is
+# borrowed from `import-generic`, which is measured, and is deliberately not the
+# higher number the class probably deserves: an unearned 0.95 in a file whose
+# header promises calibration would be the one dishonest row here.
+import-specific = 0.85
 
 # A provider import with no algorithm attached: BCryptEncrypt proves CNG, full
 # stop. High confidence in a deliberately weak claim ("this binary does
 # cryptography"), which is why it is reported as a provider family and never as
 # an algorithm.
-import-generic = 0.90
+#
+# Corpus: 24 true positives, 0 false positives.
+import-generic = 0.85
 
-# A bare UTF-16 algorithm name. Low on its own: the literal "AES" turns up in
-# plenty of binaries that never encrypt anything. The detector only reports one
-# when a matching provider import is present in the same file, which is what
-# makes it usable at all.
-utf16-string = 0.70
+# A UTF-16 algorithm name, reportable only when a matching provider import is
+# present in the same file (design §4). The gate is what makes it usable: bare
+# "AES" turns up in binaries that never encrypt anything.
+#
+# Corpus: 20 true positives, 0 false positives - but only after the corpus found
+# that `L"DH"` occurs by chance in DWARF debug data in every debug build. The
+# fix (skip discardable sections) is in detectors/imports.py; without it this
+# class measured 20 true positives against 23 false ones.
+utf16-string = 0.85
 
-# Constant-detector classes, unused until slice 5. Listed here so the loader's
-# validation has a value for every class it might meet, and so the eventual
-# calibration has a full baseline to overwrite.
-unique-table  = 0.90
-word-table    = 0.80
+# A constant table unique to one algorithm: an AES S-box is an AES S-box.
+#
+# Corpus: 50 true positives, 0 false positives. The highest measured class, and
+# the one the whole project is for - none of these findings were visible to the
+# import table.
+unique-table = 0.95
+
+# A table of round constants or an initialisation vector. Slightly weaker than
+# unique-table: SHA-2's constants are shared between implementations and appear
+# inside larger constructions.
+#
+# Corpus: 28 true positives, 0 false positives.
+word-table = 0.90
+
+# A PEM banner or a DER structure that survived a length-consistency check.
+#
+# Corpus: 20 true positives, 0 false positives.
 der-structure = 0.85
 
-# The honest low end. FR-8's entropy heuristic cannot distinguish a key from
-# compressed data, and NFR-5 sets no minimum bar for it — it ships measured,
-# not defended.
-entropy-region = 0.30
+# The honest low end, and the class that lost.
+#
+# Corpus: 4 true positives against 100 false positives, precision 0.038. It
+# fired on all 104 binaries, including every negative sample; the dominant false
+# positive is IEEE-754 constant tables in the C math library. The heuristic
+# ships disabled (`[entropy] enabled = false` in material.toml) and this floor
+# value applies only if you turn it back on.
+entropy-region = 0.05
 
 [merge]
 

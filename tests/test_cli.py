@@ -13,6 +13,7 @@ import pytest
 
 from shorsighted import __version__
 from shorsighted.cli import EXIT_FILE_ERRORS, EXIT_OK, EXIT_USAGE, main
+from shorsighted.signatures.loader import load_signatures
 from tests.fixtures.build import SCN_CODE, SectionSpec, build_pe
 
 
@@ -255,7 +256,18 @@ def test_two_detectors_agreeing_produce_one_finding(
 def test_min_confidence_filters_findings(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """US-4: a report for management keeps only high-precision findings."""
+    """US-4: a report for management keeps only high-precision findings.
+
+    The threshold is read from the signature data rather than written here.
+    Slice 10's calibration moved every class, and a test that pins the numbers
+    would have to be edited each time the corpus is re-measured - which is the
+    reverse of what a regression test is for.
+    """
+    signatures = load_signatures()
+    provider = signatures.confidence_for("import-generic")
+    named = signatures.confidence_for("utf16-string") + signatures.corroboration_bonus
+    assert provider < named, "this test needs the provider shrug to be the weaker claim"
+
     image = build_pe(
         sections=(SectionSpec(".rdata", wide("AES", "RSA")),),
         imports=(("bcrypt.dll", ("BCryptEncrypt",)),),
@@ -264,12 +276,15 @@ def test_min_confidence_filters_findings(
 
     main([str(target), "--format", "text"])
     everything = capsys.readouterr().out
-    main([str(target), "--format", "text", "--min-confidence", "0.85"])
+    main([str(target), "--format", "text", "--min-confidence", str(named)])
     filtered = capsys.readouterr().out
 
     assert "AES" in everything
-    assert "AES" not in filtered  # a 0.75 utf16-string finding
-    assert "CNG" in filtered  # the 0.90 provider import survives
+    assert "CNG" in everything
+    # "CNG" alone means "cryptography, somehow". A named algorithm corroborated
+    # by the provider that unlocked it outranks it, and survives the filter.
+    assert "AES" in filtered
+    assert "CNG" not in filtered
 
 
 @pytest.mark.parametrize("value", ["-0.1", "1.5", "2"])

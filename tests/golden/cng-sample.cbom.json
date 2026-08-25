@@ -15,7 +15,7 @@
     "properties": [
       {
         "name": "shorsighted:signature-version",
-        "value": "3db8123eca575a4e"
+        "value": "df7466bd0f88180b"
       },
       {
         "name": "shorsighted:skipped-non-pe",
@@ -73,7 +73,7 @@
       "properties": [
         {
           "name": "shorsighted:confidence",
-          "value": "0.75"
+          "value": "0.90"
         },
         {
           "name": "shorsighted:detectors",
@@ -113,7 +113,7 @@
       "properties": [
         {
           "name": "shorsighted:confidence",
-          "value": "0.90"
+          "value": "0.85"
         },
         {
           "name": "shorsighted:detectors",
@@ -145,7 +145,7 @@
       "properties": [
         {
           "name": "shorsighted:confidence",
-          "value": "0.75"
+          "value": "0.90"
         },
         {
           "name": "shorsighted:detectors",
@@ -179,7 +179,7 @@
       "properties": [
         {
           "name": "shorsighted:confidence",
-          "value": "0.75"
+          "value": "0.90"
         },
         {
           "name": "shorsighted:detectors",

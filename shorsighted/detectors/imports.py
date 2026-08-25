@@ -153,6 +153,15 @@ def _scan_strings(
     return findings
 
 
+DISCARDABLE = 0x02000000
+"""IMAGE_SCN_MEM_DISCARDABLE.
+
+The loader may throw these sections away once the image is mapped, so nothing
+in them is readable by the running program. `.reloc` and the `.debug_*` /
+COFF-long-name sections carry it.
+"""
+
+
 def _find_all(pe: LoadedPE, signature: StringSignature, limit: int = 16) -> tuple[int, ...]:
     """Offsets of a null-terminated UTF-16LE literal, capped at `limit`.
 
@@ -161,22 +170,35 @@ def _find_all(pe: LoadedPE, signature: StringSignature, limit: int = 16) -> tupl
     is a whole wide-string literal, which is what a BCRYPT_*_ALGORITHM constant
     actually is.
 
-    ponytail: a literal can still match as the tail of a longer one — "AES\\0"
-    inside "USEAES\\0". Rare enough to measure rather than pre-solve; if the
-    slice 10 eval shows it costing precision, the fix is to also require the
-    preceding two bytes not to be a wide alphanumeric.
+    Discardable sections are skipped, and that is not a micro-optimisation. The
+    slice 10 corpus found `L"DH"` - six bytes with its terminator - occurring by
+    chance in DWARF debug data in *every* debug build, handing a false "this
+    binary does Diffie-Hellman" to twenty-three otherwise correct samples. A CNG
+    algorithm name is read at runtime by `BCryptOpenAlgorithmProvider`, so it
+    cannot live in a section the loader is free to discard: a match there is a
+    coincidence by construction. Restricting the search is what makes short
+    algorithm names safe to ship as signatures at all.
+
+    ponytail: a literal can still match as the tail of a longer one - "AES" and
+    its terminator also end "USEAES". The corpus did not produce one, so it
+    stays measured rather than pre-solved.
     """
     needle = (signature.value + "\x00").encode("utf-16-le")
     offsets: list[int] = []
-    start = 0
-    data = pe.data
-    while len(offsets) < limit:
-        found = data.find(needle, start)
-        if found == -1:
+    for section in pe.sections:
+        if section.characteristics & DISCARDABLE or not section.raw_size:
+            continue
+        data = section.data
+        cursor = 0
+        while len(offsets) < limit:
+            found = data.find(needle, cursor)
+            if found == -1:
+                break
+            offsets.append(section.raw_offset + found)
+            cursor = found + 2
+        if len(offsets) >= limit:
             break
-        offsets.append(found)
-        start = found + 2
-    return tuple(offsets)
+    return tuple(sorted(offsets))
 
 
 DETECTOR = register(ImportDetector())

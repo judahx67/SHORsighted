@@ -1,0 +1,70 @@
+name: Evaluation
+
+# The corpus build and the AC-7 evaluation. Deliberately not on every PR: it
+# needs a C toolchain and produces a report that is committed rather than
+# consumed by a gate.
+#
+# Two things it does gate:
+#   - the eval must run clean (a corpus that no longer builds is a broken claim)
+#   - confidence.toml must agree with what the corpus measures, so a signature
+#     change cannot quietly invalidate every number the tool prints
+#
+# The report is uploaded as an artifact so a signature PR can be checked against
+# real numbers before it lands.
+
+on:
+  schedule:
+    - cron: "30 3 * * 1"
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "shorsighted/signatures/**"
+      - "shorsighted/detectors/**"
+      - "corpus/**"
+      - "eval/**"
+
+jobs:
+  evaluate:
+    name: Corpus + eval
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.16.0
+
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+
+      - name: Build the corpus
+        run: python -m corpus.build
+
+      - name: Evaluate and check calibration
+        run: python -m eval.run --check --out eval/report.md
+
+      - name: Show the report
+        run: cat eval/report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if the committed report is stale
+        run: |
+          if ! git diff --quiet -- eval/report.md; then
+            echo "::error::eval/report.md is out of date. Run 'python -m eval.run' and commit it."
+            git diff -- eval/report.md
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-report
+          path: eval/report.md
