@@ -4,6 +4,7 @@ End-to-end through the real pipeline, on synthetic PEs built in memory. No
 binary is fetched or read from the host system anywhere in this suite.
 """
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -66,7 +67,7 @@ def test_a_clean_scan_exits_zero(tmp_path: Path, capsys: pytest.CaptureFixture[s
     target = write_pe(
         tmp_path, "clean.exe", build_pe(sections=(SectionSpec(".text", b"\xc3", SCN_CODE),))
     )
-    assert main([str(target)]) == EXIT_OK
+    assert main([str(target), "--format", "text"]) == EXIT_OK
     assert "none detected" in capsys.readouterr().out
 
 
@@ -77,7 +78,7 @@ def test_an_unreadable_file_exits_two_not_one(
     files failed'. CI callers act on that difference."""
     target = tmp_path / "junk.exe"
     target.write_bytes(b"this is not a PE file at all")
-    assert main([str(target)]) == EXIT_FILE_ERRORS
+    assert main([str(target), "--format", "text"]) == EXIT_FILE_ERRORS
     assert "could not analyse: not-pe" in capsys.readouterr().out
 
 
@@ -106,7 +107,7 @@ def test_a_synthetic_cng_binary_reports_its_algorithms(
             ("kernel32.dll", ("ExitProcess",)),
         ),
     )
-    assert main([str(write_pe(tmp_path, "cng.exe", image))]) == EXIT_OK
+    assert main([str(write_pe(tmp_path, "cng.exe", image)), "--format", "text"]) == EXIT_OK
 
     output = capsys.readouterr().out
     for expected in ("AES", "SHA-256", "RSA", "0 BROKEN", "block-cipher", "hash"):
@@ -128,5 +129,73 @@ def test_a_statically_linked_shape_is_not_yet_detected(
         sections=(SectionSpec(".rdata", bytes(range(256))),),
         imports=(("kernel32.dll", ("ExitProcess",)),),
     )
-    assert main([str(write_pe(tmp_path, "static.exe", image))]) == EXIT_OK
+    assert main([str(write_pe(tmp_path, "static.exe", image)), "--format", "text"]) == EXIT_OK
     assert "none detected" in capsys.readouterr().out
+
+
+# --- output formats and destinations (FR-11, FR-15, NFR-6) ----------------
+
+
+def test_json_is_the_default_format(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """FR-11: the CBOM is the contract, so it is what you get without asking.
+    The text table is the opt-in convenience."""
+    target = write_pe(
+        tmp_path, "clean.exe", build_pe(sections=(SectionSpec(".text", b"\xc3", SCN_CODE),))
+    )
+    assert main([str(target)]) == EXIT_OK
+    document = json.loads(capsys.readouterr().out)
+    assert document["bomFormat"] == "CycloneDX"
+    assert document["specVersion"] == "1.6"
+
+
+def test_output_flag_writes_to_a_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    target = write_pe(tmp_path, "clean.exe", build_pe())
+    destination = tmp_path / "out" / "bom.json"
+    destination.parent.mkdir()
+
+    assert main([str(target), "--output", str(destination)]) == EXIT_OK
+    assert capsys.readouterr().out == ""
+    assert json.loads(destination.read_text(encoding="utf-8"))["bomFormat"] == "CycloneDX"
+
+
+def test_unwritable_output_is_a_usage_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A path that cannot be written is the caller's mistake, not the binary's,
+    so it is exit 1 rather than exit 2."""
+    target = write_pe(tmp_path, "clean.exe", build_pe())
+    assert main([str(target), "--output", str(tmp_path / "no" / "such" / "dir.json")]) == EXIT_USAGE
+    assert "cannot write" in capsys.readouterr().err
+
+
+def test_reproducible_output_is_byte_identical_across_runs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """NFR-6, end to end through the CLI rather than only in the serializer."""
+    target = write_pe(tmp_path, "clean.exe", build_pe())
+    main([str(target), "--reproducible"])
+    first = capsys.readouterr().out
+    main([str(target), "--reproducible"])
+    assert capsys.readouterr().out == first
+    assert "serialNumber" not in first
+
+
+def test_default_json_carries_a_serial_number(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = write_pe(tmp_path, "clean.exe", build_pe())
+    main([str(target)])
+    assert "urn:uuid:" in capsys.readouterr().out
+
+
+def test_cli_json_validates_against_the_schema(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], assert_valid_cbom: object
+) -> None:
+    """AC-5 applies to what the CLI actually prints, not only to what the
+    serializer returns in-process."""
+    image = build_pe(
+        sections=(SectionSpec(".rdata", wide("AES", "RSA")),),
+        imports=(("bcrypt.dll", ("BCryptEncrypt",)),),
+    )
+    main([str(write_pe(tmp_path, "cng.exe", image))])
+    assert_valid_cbom(json.loads(capsys.readouterr().out))  # type: ignore[operator]

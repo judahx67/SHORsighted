@@ -1,0 +1,202 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "metadata": {
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "shorsighted",
+          "version": "0.1.0.test"
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "shorsighted:signature-version",
+        "value": "007633992e1519b9"
+      },
+      {
+        "name": "shorsighted:skipped-non-pe",
+        "value": "0"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "file",
+      "bom-ref": "file:fixtures/cng-sample.exe",
+      "name": "cng-sample.exe",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d8daded33ce4f36de9eb571b98c1e087321cd21cd72a5e8a77f1e4303c4e212f"
+        }
+      ],
+      "properties": [
+        {
+          "name": "shorsighted:analysis",
+          "value": "ok"
+        },
+        {
+          "name": "shorsighted:machine",
+          "value": "x64"
+        },
+        {
+          "name": "shorsighted:path",
+          "value": "fixtures/cng-sample.exe"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto:fixtures/cng-sample.exe/aes",
+      "name": "AES",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "block-cipher",
+          "implementationPlatform": "x86_64",
+          "nistQuantumSecurityLevel": 1
+        }
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "fixtures/cng-sample.exe",
+            "offset": 1024,
+            "additionalContext": "imports/cng-alg-aes: UTF-16 literal \"AES\" with cng provider imported"
+          }
+        ]
+      },
+      "properties": [
+        {
+          "name": "shorsighted:confidence",
+          "value": "0.75"
+        },
+        {
+          "name": "shorsighted:detectors",
+          "value": "imports"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto:fixtures/cng-sample.exe/cng",
+      "name": "CNG",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "implementationPlatform": "x86_64"
+        }
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "fixtures/cng-sample.exe",
+            "symbol": "BCryptEncrypt",
+            "additionalContext": "imports/cng-bcrypt: imports BCryptEncrypt from bcrypt.dll"
+          },
+          {
+            "location": "fixtures/cng-sample.exe",
+            "symbol": "BCryptOpenAlgorithmProvider",
+            "additionalContext": "imports/cng-bcrypt: imports BCryptOpenAlgorithmProvider from bcrypt.dll"
+          },
+          {
+            "location": "fixtures/cng-sample.exe",
+            "symbol": "BCryptSignHash",
+            "additionalContext": "imports/cng-bcrypt: imports BCryptSignHash from bcrypt.dll"
+          }
+        ]
+      },
+      "properties": [
+        {
+          "name": "shorsighted:confidence",
+          "value": "0.90"
+        },
+        {
+          "name": "shorsighted:detectors",
+          "value": "imports"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto:fixtures/cng-sample.exe/rsa",
+      "name": "RSA",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "pke",
+          "implementationPlatform": "x86_64",
+          "nistQuantumSecurityLevel": 0
+        }
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "fixtures/cng-sample.exe",
+            "offset": 1046,
+            "additionalContext": "imports/cng-alg-rsa: UTF-16 literal \"RSA\" with cng provider imported"
+          }
+        ]
+      },
+      "properties": [
+        {
+          "name": "shorsighted:confidence",
+          "value": "0.75"
+        },
+        {
+          "name": "shorsighted:detectors",
+          "value": "imports"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto:fixtures/cng-sample.exe/sha-256",
+      "name": "SHA-256",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "hash",
+          "parameterSetIdentifier": "256",
+          "implementationPlatform": "x86_64",
+          "nistQuantumSecurityLevel": 2
+        },
+        "oid": "2.16.840.1.101.3.4.2.1"
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "fixtures/cng-sample.exe",
+            "offset": 1032,
+            "additionalContext": "imports/cng-alg-sha256: UTF-16 literal \"SHA256\" with cng provider imported"
+          }
+        ]
+      },
+      "properties": [
+        {
+          "name": "shorsighted:confidence",
+          "value": "0.75"
+        },
+        {
+          "name": "shorsighted:detectors",
+          "value": "imports"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "file:fixtures/cng-sample.exe",
+      "dependsOn": [
+        "crypto:fixtures/cng-sample.exe/aes",
+        "crypto:fixtures/cng-sample.exe/cng",
+        "crypto:fixtures/cng-sample.exe/rsa",
+        "crypto:fixtures/cng-sample.exe/sha-256"
+      ]
+    }
+  ]
+}

@@ -1,8 +1,7 @@
 """Command-line surface (FR-17). Argparse plumbing and exit codes; no analysis.
 
-Single files only in this slice. `--format json`, directory walking,
-`--min-confidence`, and `--detectors` arrive with the slices that give them
-something to do.
+Single files only in this slice. Directory walking, `--min-confidence`, and
+`--detectors` arrive with the slices that give them something to do.
 """
 
 import argparse
@@ -11,9 +10,9 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from shorsighted import __version__
-from shorsighted.core.model import AnalysisStatus
+from shorsighted.core.model import AnalysisStatus, ScanResult
 from shorsighted.core.scanner import scan_paths
-from shorsighted.output import text
+from shorsighted.output import cbom, text
 from shorsighted.signatures.loader import load_signatures
 from shorsighted.signatures.schema import SignatureError
 
@@ -40,6 +39,25 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="PE file to scan (directory scanning arrives in a later slice)",
     )
+    parser.add_argument(
+        "--format",
+        choices=("json", "text"),
+        default="json",
+        help="json emits a CycloneDX 1.6 CBOM (the contract); text is a summary "
+        "table with no stability guarantee (default: json)",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        metavar="FILE",
+        help="write to FILE instead of stdout",
+    )
+    parser.add_argument(
+        "--reproducible",
+        action="store_true",
+        help="omit the serial number and timestamp so identical input, tool and "
+        "signature versions produce a byte-identical CBOM",
+    )
     parser.add_argument("--version", action="version", version=f"shorsighted {__version__}")
     return parser
 
@@ -64,7 +82,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_USAGE
 
     result = scan_paths([args.path], signatures, tool_version=__version__)
-    print(text.render(result))
+    rendered = _render(result, args.format, reproducible=args.reproducible)
+
+    if args.output is not None:
+        try:
+            args.output.write_text(rendered, encoding="utf-8", newline="\n")
+        except OSError as exc:
+            print(f"shorsighted: cannot write {args.output}: {exc}", file=sys.stderr)
+            return EXIT_USAGE
+    else:
+        print(rendered, end="")
 
     errored = any(f.status is AnalysisStatus.ERROR for f in result.files)
     return EXIT_FILE_ERRORS if errored else EXIT_OK
+
+
+def _render(result: ScanResult, output_format: str, *, reproducible: bool) -> str:
+    if output_format == "json":
+        return cbom.serialize(result, reproducible=reproducible)
+    return text.render(result) + "\n"
