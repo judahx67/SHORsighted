@@ -12,18 +12,29 @@ name: Evaluation
 # The report is uploaded as an artifact so a signature PR can be checked against
 # real numbers before it lands.
 
+# ponytail: no tag trigger here. A `push` block cannot filter tags and branches
+# separately, and a paths filter on a tag push does not do what it looks like.
+# Slice 11's release.yml calls this workflow instead.
 on:
   schedule:
     - cron: "30 3 * * 1"
   workflow_dispatch:
+  workflow_call:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths:
+      - "shorsighted/signatures/**"
+      - "shorsighted/detectors/**"
+      - "corpus/**"
+      - "eval/**"
+      - ".github/workflows/eval.yml"
   pull_request:
     paths:
       - "shorsighted/signatures/**"
       - "shorsighted/detectors/**"
       - "corpus/**"
       - "eval/**"
+      - ".github/workflows/eval.yml"
 
 jobs:
   evaluate:
