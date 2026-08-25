@@ -207,3 +207,79 @@ def test_output_has_a_short_flag(tmp_path: Path) -> None:
     destination = tmp_path / "bom.json"
     assert main([str(target), "-o", str(destination)]) == EXIT_OK
     assert json.loads(destination.read_text(encoding="utf-8"))["bomFormat"] == "CycloneDX"
+
+
+# --- corroboration and filtering (FR-10, FR-12, US-4) ---------------------
+
+
+def test_two_detectors_agreeing_produce_one_finding(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """FR-10 end to end: an OpenSSL AES import and an AES S-box in the same
+    file are two observations of one fact, and must be reported as one."""
+    from tools.derive_constants import aes_sbox
+
+    image = build_pe(
+        machine="x64",
+        sections=(
+            SectionSpec(".text", b"\x90" * 64, SCN_CODE),
+            SectionSpec(".rdata", b"\x00" * 32 + aes_sbox()),
+        ),
+        imports=(("libcrypto-3-x64.dll", ("AES_encrypt",)),),
+    )
+    assert main([str(write_pe(tmp_path, "both.exe", image))]) == EXIT_OK
+
+    document = json.loads(capsys.readouterr().out)
+    aes = [c for c in document["components"] if c["name"] == "AES"]
+    assert len(aes) == 1, "AES should appear once, not once per detector"
+    detectors = next(
+        p["value"] for p in aes[0]["properties"] if p["name"] == "shorsighted:detectors"
+    )
+    assert detectors == "constants,imports"
+
+
+def test_min_confidence_filters_findings(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """US-4: a report for management keeps only high-precision findings."""
+    image = build_pe(
+        sections=(SectionSpec(".rdata", wide("AES", "RSA")),),
+        imports=(("bcrypt.dll", ("BCryptEncrypt",)),),
+    )
+    target = write_pe(tmp_path, "cng.exe", image)
+
+    main([str(target), "--format", "text"])
+    everything = capsys.readouterr().out
+    main([str(target), "--format", "text", "--min-confidence", "0.85"])
+    filtered = capsys.readouterr().out
+
+    assert "AES" in everything
+    assert "AES" not in filtered  # a 0.75 utf16-string finding
+    assert "CNG" in filtered  # the 0.90 provider import survives
+
+
+@pytest.mark.parametrize("value", ["-0.1", "1.5", "2"])
+def test_min_confidence_outside_zero_to_one_is_a_usage_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], value: str
+) -> None:
+    target = write_pe(tmp_path, "clean.exe", build_pe())
+    assert main([str(target), "--min-confidence", value]) == EXIT_USAGE
+    assert "between 0.0 and 1.0" in capsys.readouterr().err
+
+
+def test_filtering_happens_after_corroboration(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Order matters: filtering first would discard the very evidence that
+    would have raised a finding above the threshold."""
+    from tools.derive_constants import aes_sbox
+
+    image = build_pe(
+        machine="x64",
+        sections=(SectionSpec(".rdata", b"\x00" * 32 + aes_sbox()),),
+        imports=(("libcrypto-3-x64.dll", ("AES_encrypt",)),),
+    )
+    target = write_pe(tmp_path, "both.exe", image)
+    # Neither detector alone reaches 0.96; corroborated, AES does.
+    assert main([str(target), "--format", "text", "--min-confidence", "0.96"]) == EXIT_OK
+    assert "AES" in capsys.readouterr().out

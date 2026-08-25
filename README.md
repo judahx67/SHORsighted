@@ -13,7 +13,7 @@ Existing CBOM tooling reads source code. A great deal of real-world cryptography
 OpenSSL inside software nobody has the source to — invisible to every source-level scanner. That gap is the
 point of this tool.
 
-## Status: pre-alpha, slice 5 of 12 🌱
+## Status: pre-alpha, slice 6 of 12 🌱
 
 Point it at a PE file and it emits a CycloneDX 1.6 CBOM naming the algorithms it
 finds, with evidence, offsets, and NIST quantum levels. Two detectors run: the
@@ -25,11 +25,12 @@ official 1.6 schema in CI.
 ```console
 $ shorsighted app.exe                      # CycloneDX 1.6 JSON (the contract)
 $ shorsighted app.exe --format text        # summary table, no stability guarantee
+$ shorsighted app.exe --min-confidence 0.9    # high-precision findings only
 $ shorsighted app.exe --reproducible -o bom.json
 ```
 
-**What it cannot do yet:** corroborate findings across detectors (slice 6),
-scan directories (slice 7), find embedded certificates (slice 8). DES and the
+**What it cannot do yet:** scan directories (slice 7), find embedded
+certificates (slice 8), detect packed or .NET binaries as such (slice 7). DES and the
 PQC constant tables are not shipped — see `tools/derive_constants.py` for why.
 The confidence numbers you see are uncalibrated placeholders until slice 10.
 

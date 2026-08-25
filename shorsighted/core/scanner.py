@@ -9,6 +9,7 @@ this level rather than in the caller.
 from collections.abc import Sequence
 from pathlib import Path
 
+from shorsighted.core.merge import merge_findings, suppress_below
 from shorsighted.core.model import AnalysisStatus, Finding, ScannedFile, ScanResult
 from shorsighted.detectors import constants as constant_detector
 from shorsighted.detectors import imports as import_detector
@@ -33,6 +34,7 @@ def scan_file(
     path: Path,
     signatures: SignatureSet,
     detectors: Sequence[Detector] | None = None,
+    min_confidence: float = 0.0,
 ) -> ScannedFile:
     """Analyse one file. Never raises for anything about the file's content.
 
@@ -48,13 +50,17 @@ def scan_file(
             findings: list[Finding] = []
             for detector in chosen:
                 findings.extend(detector.scan(pe, signatures))
-            return ScannedFile(
-                path=path,
-                sha256=pe.sha256,
-                size=pe.size,
-                machine=pe.machine,
-                status=AnalysisStatus.OK,
-                findings=tuple(findings),
+            merged = merge_findings(findings, signatures.corroboration_bonus)
+            return suppress_below(
+                ScannedFile(
+                    path=path,
+                    sha256=pe.sha256,
+                    size=pe.size,
+                    machine=pe.machine,
+                    status=AnalysisStatus.OK,
+                    findings=merged,
+                ),
+                min_confidence,
             )
     except PEFormatError as exc:
         return ScannedFile(
@@ -72,9 +78,10 @@ def scan_paths(
     signatures: SignatureSet,
     tool_version: str,
     detectors: Sequence[Detector] | None = None,
+    min_confidence: float = 0.0,
 ) -> ScanResult:
     """Scan each path and collect the results into one report."""
-    files = tuple(scan_file(path, signatures, detectors) for path in paths)
+    files = tuple(scan_file(path, signatures, detectors, min_confidence) for path in paths)
     return ScanResult(
         files=files,
         tool_version=tool_version,

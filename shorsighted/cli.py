@@ -1,7 +1,7 @@
 """Command-line surface (FR-17). Argparse plumbing and exit codes; no analysis.
 
-Single files only in this slice. Directory walking, `--min-confidence`, and
-`--detectors` arrive with the slices that give them something to do.
+Single files only in this slice. Directory walking and `--detectors` arrive
+with the slices that give them something to do.
 """
 
 import argparse
@@ -54,6 +54,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="write to FILE instead of stdout",
     )
     parser.add_argument(
+        "--min-confidence",
+        type=float,
+        default=0.0,
+        metavar="X",
+        help="drop findings below X (0.0-1.0). Applied after corroboration, so a "
+        "finding two detectors agree on can rise above the threshold "
+        "(default: 0.0, report everything)",
+    )
+    parser.add_argument(
         "--reproducible",
         action="store_true",
         help="omit the serial number and timestamp so identical input, tool and "
@@ -71,6 +80,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return EXIT_OK
 
+    if not 0.0 <= args.min_confidence <= 1.0:
+        print(
+            f"shorsighted: --min-confidence must be between 0.0 and 1.0, got {args.min_confidence}",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+
     if not args.path.is_file():
         print(f"shorsighted: not a file: {args.path}", file=sys.stderr)
         return EXIT_USAGE
@@ -82,7 +98,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"shorsighted: signature data is invalid: {exc}", file=sys.stderr)
         return EXIT_USAGE
 
-    result = scan_paths([args.path], signatures, tool_version=__version__)
+    result = scan_paths(
+        [args.path],
+        signatures,
+        tool_version=__version__,
+        min_confidence=args.min_confidence,
+    )
     rendered = _render(result, args.format, reproducible=args.reproducible)
 
     if args.output is not None:
