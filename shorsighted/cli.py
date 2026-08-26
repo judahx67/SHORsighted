@@ -109,6 +109,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("shorsighted: --timeout cannot be negative", file=sys.stderr)
         return EXIT_USAGE
 
+    if args.appendix_limit < 0:
+        print("shorsighted: --appendix-limit cannot be negative", file=sys.stderr)
+        return EXIT_USAGE
+
     if not 0.0 <= args.min_confidence <= 1.0:
         print(
             f"shorsighted: --min-confidence must be between 0.0 and 1.0, got {args.min_confidence}",

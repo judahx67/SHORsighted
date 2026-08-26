@@ -452,3 +452,72 @@ def _metric(rendered: str, label: str) -> int:
     match = re.search(rf'{re.escape(label)}</div><div class="metric-value[^"]*">(\d+)<', rendered)
     assert match, f"metric {label!r} not found in the report"
     return int(match.group(1))
+
+
+# --- review findings: the page must not contradict itself -------------------
+
+
+def _asset(ref: str | None = None, level: int = 0) -> dict[str, object]:
+    asset: dict[str, object] = {
+        "type": "cryptographic-asset",
+        "name": "RSA",
+        "cryptoProperties": {"algorithmProperties": {"nistQuantumSecurityLevel": level}},
+    }
+    if ref:
+        asset["bom-ref"] = ref
+    return asset
+
+
+def test_an_asset_with_no_bom_ref_is_still_a_finding() -> None:
+    """`bom-ref` is optional in CycloneDX. Counting findings through the
+    file join dropped these entirely — a foreign document could lose real
+    assets and the report would look complete."""
+    rendered = report.render(json.dumps({"components": [_asset()]}))
+    assert _metric(rendered, "Findings") == 1
+    assert _metric(rendered, "Quantum-vulnerable") == 1
+
+
+def test_findings_and_quantum_vulnerable_count_the_same_set() -> None:
+    """The defect this pair exists to catch: an asset no `dependencies` entry
+    referenced was counted as quantum-vulnerable but not as a finding, so the
+    summary printed 'Findings 0' directly above 'Quantum-vulnerable 1'."""
+    document = {
+        "components": [{"type": "file", "bom-ref": "f1", "name": "a.exe"}, _asset("a1")],
+    }
+    rendered = report.render(json.dumps(document))
+    assert _metric(rendered, "Findings") == 1
+    assert _metric(rendered, "Quantum-vulnerable") == 1
+
+
+def test_a_finding_with_no_file_is_shown_not_silently_dropped() -> None:
+    """It is counted in the summary, so it has to appear somewhere. A number on
+    page 2 with nothing behind it in section 1 is the report contradicting
+    itself."""
+    rendered = report.render(json.dumps({"components": [_asset("a1")]}))
+    assert "Findings not linked to a file in this document" in rendered
+    assert "RSA" in rendered
+
+
+def test_an_unrecognised_status_still_reaches_the_coverage_chart() -> None:
+    """A status this build does not know about was dropped from both the bar
+    and the table, leaving a coverage chart that covered half its files. The
+    chart under-reported exactly where coverage was least understood."""
+    document = {
+        "components": [
+            {
+                "type": "file",
+                "bom-ref": f"f{i}",
+                "name": f"{i}.exe",
+                "properties": [{"name": "shorsighted:analysis", "value": status}],
+            }
+            for i, status in enumerate(["ok", "degraded-future-thing"])
+        ]
+    }
+    rendered = report.render(json.dumps(document))
+    widths = [
+        float(w)
+        for w in re.findall(r'class="(?:swatch )?fill-[a-z-]+" style="width:([\d.]+)%', rendered)
+    ]
+    assert sum(widths) == pytest.approx(100.0), "the coverage bar must cover every file"
+    assert "degraded-future-thing" in rendered
+    assert "not a status this version records" in rendered

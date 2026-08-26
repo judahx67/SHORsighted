@@ -394,3 +394,59 @@ def test_an_unknown_detector_name_is_a_usage_error(
     target = write_pe(tmp_path, "clean.exe", build_pe())
     assert main([str(target), "--detectors", "telepathy"]) == EXIT_USAGE
     assert "unknown detector 'telepathy'" in capsys.readouterr().err
+
+
+# --- the report surface -----------------------------------------------------
+
+
+def test_html_format_writes_a_printable_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    binary = tmp_path / "app.exe"
+    binary.write_bytes(build_pe(sections=(SectionSpec(".text", b"\x90" * 256, SCN_CODE),)))
+    assert main([str(binary), "--format", "html"]) == EXIT_OK
+    output = capsys.readouterr().out
+    assert output.startswith("<!DOCTYPE html>")
+    assert "<script" not in output.lower()
+
+
+def test_render_and_format_html_agree_on_the_same_document(tmp_path: Path) -> None:
+    """The CBOM-consumer path and the scan path are one renderer, and this is
+    what says so: differ by a byte and one of them has grown a private input."""
+    binary = tmp_path / "app.exe"
+    binary.write_bytes(build_pe(sections=(SectionSpec(".text", b"\x90" * 256, SCN_CODE),)))
+    document = tmp_path / "bom.json"
+    direct = tmp_path / "direct.html"
+    indirect = tmp_path / "indirect.html"
+
+    assert main([str(binary), "--reproducible", "-o", str(document)]) == EXIT_OK
+    assert main([str(binary), "--reproducible", "--format", "html", "-o", str(direct)]) == EXIT_OK
+    assert main(["render", str(document), "-o", str(indirect)]) == EXIT_OK
+
+    assert direct.read_text(encoding="utf-8") == indirect.read_text(encoding="utf-8")
+
+
+def test_render_rejects_something_that_is_not_a_cbom(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`render` takes someone else's file, so a bad one is input, not a bug."""
+    junk = tmp_path / "junk.json"
+    junk.write_text("this is not json", encoding="utf-8")
+    assert main(["render", str(junk)]) == EXIT_USAGE
+    assert "is not a usable CBOM" in capsys.readouterr().err
+
+
+def test_render_reports_a_missing_file_rather_than_raising(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["render", str(tmp_path / "absent.json")]) == EXIT_USAGE
+    assert "cannot read" in capsys.readouterr().err
+
+
+def test_a_negative_appendix_limit_is_a_usage_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    binary = tmp_path / "app.exe"
+    binary.write_bytes(build_pe(sections=(SectionSpec(".text", b"\x90" * 256, SCN_CODE),)))
+    assert main([str(binary), "--appendix-limit", "-1"]) == EXIT_USAGE
+    assert "cannot be negative" in capsys.readouterr().err

@@ -75,16 +75,22 @@ class _Report:
 
         components = _sequence(document.get("components"))
         self.files = [c for c in components if c.get("type") == "file"]
-        self.assets = {
-            ref: c
-            for c in components
-            if c.get("type") == "cryptographic-asset" and (ref := c.get("bom-ref"))
-        }
+
+        # Every crypto component is a finding, whether or not it can be joined
+        # to a file. `bom-ref` is optional in CycloneDX and `dependencies` may
+        # be absent entirely, so counting through the join would silently drop
+        # real assets out of a foreign document - and would let "Findings" and
+        # "Quantum-vulnerable" print different totals for the same set.
+        self.crypto = [c for c in components if c.get("type") == "cryptographic-asset"]
+        self.assets = {ref: c for c in self.crypto if (ref := c.get("bom-ref"))}
         self.by_file = {
             ref: [self.assets[d] for d in _strings(entry.get("dependsOn")) if d in self.assets]
             for entry in _sequence(document.get("dependencies"))
             if (ref := entry.get("ref"))
         }
+        joined = {id(asset) for assets in self.by_file.values() for asset in assets}
+        self.unattributed = [c for c in self.crypto if id(c) not in joined]
+
         self.statuses = [_prop(f, "analysis") for f in self.files]
         self.has_status = any(s is not None for s in self.statuses)
 
@@ -114,18 +120,29 @@ class _Report:
     # --- page 1 -------------------------------------------------------------
 
     def _cover(self) -> str:
+        # Paired explicitly rather than sliced into columns: index arithmetic
+        # over this list would drop a row silently the first time someone adds
+        # a seventh, and a provenance table that quietly loses a field is worse
+        # than one that looks lopsided.
         rows = [
-            ("Generated", _metadata_value(self.document, "timestamp") or PLACEHOLDER),
-            ("Tool", self._tool()),
-            ("Detectors", _meta_prop(self.document, "detectors-run") or PLACEHOLDER),
-            ("Signatures", _meta_prop(self.document, "signature-version") or PLACEHOLDER),
-            ("Min confidence", _meta_prop(self.document, "min-confidence") or PLACEHOLDER),
-            ("Source CBOM", f"sha256 {_short_hash(self.digest)}"),
+            (
+                ("Generated", _metadata_value(self.document, "timestamp") or PLACEHOLDER),
+                ("Tool", self._tool()),
+            ),
+            (
+                ("Detectors", _meta_prop(self.document, "detectors-run") or PLACEHOLDER),
+                ("Signatures", _meta_prop(self.document, "signature-version") or PLACEHOLDER),
+            ),
+            (
+                ("Min confidence", _meta_prop(self.document, "min-confidence") or PLACEHOLDER),
+                ("Source CBOM", f"sha256 {_short_hash(self.digest)}"),
+            ),
         ]
         cells = "".join(
-            f"<tr><th>{escape(label)}</th><td>{escape(value)}</td>"
-            f"<th>{escape(rows[i + 3][0])}</th><td>{escape(rows[i + 3][1])}</td></tr>"
-            for i, (label, value) in enumerate(rows[:3])
+            "<tr>"
+            + "".join(f"<th>{escape(label)}</th><td>{escape(value)}</td>" for label, value in pair)
+            + "</tr>"
+            for pair in rows
         )
         return (
             '<p class="kind">Cryptographic bill of materials, evidence report</p>\n'
@@ -137,9 +154,9 @@ class _Report:
     # --- page 2 -------------------------------------------------------------
 
     def _summary(self) -> str:
-        findings = sum(len(v) for v in self.by_file.values())
+        findings = len(self.crypto)
         with_findings = sum(1 for v in self.by_file.values() if v)
-        vulnerable = sum(1 for asset in self.assets.values() if _level(asset) == 0)
+        vulnerable = sum(1 for asset in self.crypto if _level(asset) == 0)
 
         metrics = [
             ("Files scanned", str(len(self.files)), False),
@@ -160,7 +177,7 @@ class _Report:
 
     def _level_chart(self) -> str:
         counts: dict[int, int] = {}
-        for asset in self.assets.values():
+        for asset in self.crypto:
             level = _level(asset)
             if level is not None:
                 counts[level] = counts.get(level, 0) + 1
@@ -190,17 +207,24 @@ class _Report:
                 "</p></section>"
             )
 
-        counts = {status: self.statuses.count(status) for status in _STATUS_MEANING}
+        # Known statuses first, in severity order, then anything else the
+        # document carries. A status this build does not recognise still has to
+        # appear: dropping it would leave the bar covering less than the files
+        # it claims to describe, which is a coverage chart that under-reports
+        # exactly where coverage is least understood.
+        extra = sorted({s for s in self.statuses if s is not None and s not in _STATUS_MEANING})
+        counts = {status: self.statuses.count(status) for status in (*_STATUS_MEANING, *extra)}
         total = len(self.files) or 1
         segments = "".join(
-            f'<span class="fill-{status}" style="width:{count / total * 100:.2f}%"></span>'
+            f'<span class="{_fill(status)}" style="width:{count / total * 100:.2f}%"></span>'
             for status, count in counts.items()
             if count
         )
         rows = "".join(
-            f'<tr><td><span class="swatch fill-{status}"></span></td>'
+            f'<tr><td><span class="swatch {_fill(status)}"></span></td>'
             f'<td>{escape(status)}</td><td class="num">{count}</td>'
-            f"<td>{escape(_STATUS_MEANING[status])}</td></tr>"
+            f"<td>{escape(_STATUS_MEANING.get(status, 'not a status this version records'))}"
+            "</td></tr>"
             for status, count in counts.items()
         )
         return (
@@ -251,8 +275,30 @@ class _Report:
             for component in self.files
             if (assets := self.by_file.get(component.get("bom-ref", ""), []))
         ]
+        if self.unattributed:
+            blocks.append(self._unattributed_block())
         inner = "\n".join(blocks) if blocks else f'<p class="empty">{escape("No findings.")}</p>'
         return f"<section><h2>1. Findings by file</h2>\n{inner}</section>"
+
+    def _unattributed_block(self) -> str:
+        """Findings the document does not tie to a file.
+
+        Our own CBOMs always tie them, so this is the foreign-document path: a
+        tool that omits `dependencies`, or assets carrying no `bom-ref` to join
+        on. They are counted in the summary either way, so they have to be
+        listed somewhere or the page contradicts itself.
+        """
+        rows = "".join(self._finding_rows(asset) for asset in self.unattributed)
+        label = "Findings not linked to a file in this document"
+        return (
+            '<table class="data file"><thead>'
+            f'<tr><th colspan="3" class="file-head">'
+            f'<div class="file-head-row"><span class="file-path">{escape(label)}</span></div>'
+            "</th></tr>"
+            '<tr><th>Asset</th><th style="width:20mm">Level</th>'
+            '<th style="width:20mm">Conf.</th></tr></thead>'
+            f"<tbody>{rows}</tbody></table>"
+        )
 
     def _file_block(self, component: Mapping[str, Any], assets: Sequence[Mapping[str, Any]]) -> str:
         """The file identity lives in `<thead>`, not in a heading above it.
@@ -412,6 +458,12 @@ def _sheet(content: str, *, page_break: bool = False) -> str:
 def _sequence(value: Any) -> list[Mapping[str, Any]]:
     """Foreign documents are only schema-valid, not shaped how we expect."""
     return [v for v in value if isinstance(v, dict)] if isinstance(value, list) else []
+
+
+def _fill(status: str) -> str:
+    """A status with no swatch of its own borrows the neutral one, rather than
+    rendering an undefined class and therefore no swatch at all."""
+    return f"fill-{status}" if status in _STATUS_MEANING else "fill-other"
 
 
 def _strings(value: Any) -> list[str]:

@@ -234,6 +234,9 @@ section + section {
 .fill-error {
   background: var(--cover-error);
 }
+.fill-other {
+  background: var(--chart-neutral);
+}
 
 /* --- tables --------------------------------------------------------------- */
 
