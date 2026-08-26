@@ -9,7 +9,7 @@ from shorsighted import __version__
 from shorsighted.core.model import AnalysisStatus, ScanResult
 from shorsighted.core.scanner import DEFAULT_TIMEOUT, scan_tree
 from shorsighted.detectors.base import REGISTRY, Detector
-from shorsighted.output import cbom, text
+from shorsighted.output import cbom, report, text
 from shorsighted.signatures.loader import load_signatures
 from shorsighted.signatures.schema import SignatureError
 
@@ -38,10 +38,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--format",
-        choices=("json", "text"),
+        choices=("json", "text", "html"),
         default="json",
         help="json emits a CycloneDX 1.6 CBOM (the contract); text is a summary "
-        "table with no stability guarantee (default: json)",
+        "table with no stability guarantee; html is a printable evidence report "
+        "(default: json)",
+    )
+    parser.add_argument(
+        "--appendix-limit",
+        type=int,
+        default=report.APPENDIX_LIMIT,
+        metavar="N",
+        help="html only: list files with no detections individually up to N, then "
+        f"give the count alone. Counts stay exact either way (default: {report.APPENDIX_LIMIT})",
     )
     parser.add_argument(
         "-o",
@@ -85,6 +94,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "render":
+        return _render_existing(argv[1:])
+
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -129,25 +142,74 @@ def main(argv: Sequence[str] | None = None) -> int:
         min_confidence=args.min_confidence,
         timeout=args.timeout,
     )
-    rendered = _render(result, args.format, reproducible=args.reproducible)
+    rendered = _render(
+        result,
+        args.format,
+        reproducible=args.reproducible,
+        appendix_limit=args.appendix_limit,
+    )
 
-    if args.output is not None:
-        try:
-            args.output.write_text(rendered, encoding="utf-8", newline="\n")
-        except OSError as exc:
-            print(f"shorsighted: cannot write {args.output}: {exc}", file=sys.stderr)
-            return EXIT_USAGE
-    else:
-        print(rendered, end="")
+    if _emit(rendered, args.output) != EXIT_OK:
+        return EXIT_USAGE
 
     errored = any(f.status is AnalysisStatus.ERROR for f in result.files)
     return EXIT_FILE_ERRORS if errored else EXIT_OK
 
 
-def _render(result: ScanResult, output_format: str, *, reproducible: bool) -> str:
+def _render(
+    result: ScanResult, output_format: str, *, reproducible: bool, appendix_limit: int
+) -> str:
     if output_format == "json":
         return cbom.serialize(result, reproducible=reproducible)
+    if output_format == "html":
+        return report.render(
+            cbom.serialize(result, reproducible=reproducible), appendix_limit=appendix_limit
+        )
     return text.render(result) + "\n"
+
+
+def _emit(rendered: str, output: Path | None) -> int:
+    if output is None:
+        print(rendered, end="")
+        return EXIT_OK
+    try:
+        output.write_text(rendered, encoding="utf-8", newline="\n")
+    except OSError as exc:
+        print(f"shorsighted: cannot write {output}: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    return EXIT_OK
+
+
+def _render_existing(argv: Sequence[str]) -> int:
+    """`shorsighted render <cbom.json>` — the CBOM-consumer path.
+
+    A separate parser rather than argparse subcommands: subcommands would make
+    the ordinary `shorsighted PATH` invocation a special case of something
+    larger, and this is one verb, not the start of a verb family.
+    """
+    parser = argparse.ArgumentParser(
+        prog="shorsighted render",
+        description="Render an existing CycloneDX 1.6 document as a printable report.",
+    )
+    parser.add_argument("document", type=Path, help="a CycloneDX 1.6 JSON file")
+    parser.add_argument("-o", "--output", type=Path, metavar="FILE", help="write to FILE")
+    parser.add_argument("--appendix-limit", type=int, default=report.APPENDIX_LIMIT, metavar="N")
+    args = parser.parse_args(argv)
+
+    try:
+        document = args.document.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"shorsighted: cannot read {args.document}: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+
+    try:
+        rendered = report.render(document, appendix_limit=args.appendix_limit)
+    except (ValueError, TypeError) as exc:
+        # Someone else's document, so a parse failure is bad input, not a bug.
+        print(f"shorsighted: {args.document} is not a usable CBOM: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+
+    return _emit(rendered, args.output)
 
 
 def _chosen_detectors(names: str | None) -> Sequence[Detector] | None:

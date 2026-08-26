@@ -147,7 +147,21 @@ def scan_paths(
         files=files,
         tool_version=tool_version,
         signature_version=signatures.version,
+        scan_root=paths[0].as_posix() if len(paths) == 1 else "",
+        detectors_run=_detector_names(detectors),
+        min_confidence=min_confidence,
     )
+
+
+def _detector_names(detectors: Sequence[Detector] | None) -> tuple[str, ...]:
+    """Always the actual list, never a shorthand for "all".
+
+    "All of them" is a fact about today's build, and a document read in two
+    years should say which detectors ran rather than leave the reader to guess
+    what the default was at the time.
+    """
+    chosen = BUILTIN_DETECTORS if detectors is None else detectors
+    return tuple(detector.name for detector in chosen)
 
 
 def _errored(path: Path, error_class: str) -> ScannedFile:
@@ -260,4 +274,7 @@ def scan_tree(
         skipped_non_pe=skipped,
         tool_version=tool_version,
         signature_version=signatures.version,
+        scan_root=root.as_posix(),
+        detectors_run=_detector_names(detectors),
+        min_confidence=min_confidence,
     )

@@ -227,6 +227,7 @@ def _with_stable_path(result: ScanResult) -> ScanResult:
     return replace(
         result,
         files=tuple(replace(f, path=Path("fixtures/cng-sample.exe")) for f in result.files),
+        scan_root="fixtures/cng-sample.exe",
     )
 
 

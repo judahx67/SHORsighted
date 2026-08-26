@@ -27,6 +27,7 @@ def main() -> None:
     stable = replace(
         result,
         files=tuple(replace(f, path=Path("fixtures/cng-sample.exe")) for f in result.files),
+        scan_root="fixtures/cng-sample.exe",
     )
     GOLDEN.parent.mkdir(parents=True, exist_ok=True)
     GOLDEN.write_text(cbom.serialize(stable, reproducible=True), encoding="utf-8", newline="\n")
