@@ -1,0 +1,23 @@
+# SM4 (GM/T 0002-2012), the AC-6 contributor fixture.
+#
+# NOT SHIPPED. This file is dropped into a copy of the real signature directory
+# by `tests/test_signatures.py` to prove FR-9's promise end to end: a new
+# algorithm arrives as data, and the scanner reports it with no Python changed.
+# SM4 does not ship for real because a shipped signature needs a corpus sample
+# and a recalibration pass (CLAUDE.md), and this test has neither.
+#
+# The S-box is transcribed rather than derived - it has no generating rule, the
+# same reason DES is absent from `tools/derive_constants.py`. It was checked by
+# encrypting the standard test vector from the standard's appendix A.1 with it
+# before this file was written.
+
+[[signature]]
+id = "sm4-sbox"
+family = "SM4"
+algorithm = "SM4"
+primitive = "block-cipher"
+nist_quantum_level = 1
+class = "unique-table"
+description = "SM4 S-box, GM/T 0002-2012 section 6.2"
+pattern = "d690e9fecce13db716b614c228fb2c052b679a762abe04c3aa441326498606999c4250f491ef987a33540b43edcfac62e4b31ca9c908e89580df94fa758f3fa64707a7fcf37317ba83593c19e6854fa8686b81b27164da8bf8eb0f4b70569d351e240e5e6358d1a225227c3b01217887d40046579fd327524c3602e7a0c4c89eeabf8ad240c738b5a3f7f2cef96115a1e0ae5da49b341a55ad933230f58cb1e31df6e22e8266ca60c02923ab0d534e6fd5db3745defd8e2f03ff6a726d6c5b518d1baf92bbddbc7f11d95c411f105ad80ac13188a5cd7bbd2d74d012b8e5b4b08969974a0c96777e65b9f109c56ec68418f07dec3adc4d2079ee5f3ed7cb3948"
+min_match = 64

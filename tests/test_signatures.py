@@ -7,10 +7,14 @@ because the whole promise of FR-9 is that adding an algorithm needs no Python,
 and a promise like that survives exactly as long as its error messages do.
 """
 
+import json
+import shutil
 from pathlib import Path
 
 import pytest
 
+from shorsighted.core.scanner import scan_paths
+from shorsighted.output.cbom import serialize
 from shorsighted.signatures.loader import DATA_DIR, load_signatures, signature_version
 from shorsighted.signatures.schema import (
     SIGNATURE_CLASSES,
@@ -22,6 +26,7 @@ from shorsighted.signatures.schema import (
     parse_string_signature,
     validate_set,
 )
+from tests.fixtures.build import SCN_CODE, SectionSpec, build_pe
 
 CONFIDENCE_TOML = """
 [classes]
@@ -282,3 +287,61 @@ def test_import_signature_round_trips_its_fields() -> None:
 
 def test_validate_set_accepts_an_empty_set() -> None:
     validate_set(SignatureSet())
+
+
+# --- AC-6: the contributor path, end to end ---------------------------------
+
+CONTRIBUTION = Path(__file__).parent / "fixtures" / "sm4-contribution.toml"
+
+
+def test_the_shipped_signatures_do_not_know_sm4() -> None:
+    """The control for the test below. If SM4 ever ships for real this fails,
+    and the contributor test has to pick a different algorithm - otherwise it
+    would pass without the contribution and prove nothing."""
+    assert not [s for s in load_signatures().constants if s.family == "SM4"]
+
+
+def test_a_data_only_contribution_is_detected_end_to_end(tmp_path: Path) -> None:
+    """AC-6, whole. A contributor drops one TOML file into the signature
+    directory and the algorithm turns up in the CBOM - no Python edited, which
+    is the promise FR-9 makes and the reason detection knowledge is data.
+
+    Deliberately the full pipeline rather than the detector alone: "detected"
+    has to mean *in the document a user receives*, since a finding that never
+    reaches the CBOM is not a detection from where they are standing.
+    """
+    root = tmp_path / "data"
+    shutil.copytree(DATA_DIR, root)
+    shutil.copy(CONTRIBUTION, root / "constants" / "sm4.toml")
+
+    signatures = load_signatures(root)
+    (sm4,) = [s for s in signatures.constants if s.family == "SM4"]
+    assert signatures.version != load_signatures().version, (
+        "the signature version is content-addressed; adding data must move it (NFR-6)"
+    )
+
+    binary = tmp_path / "uses-sm4.exe"
+    binary.write_bytes(
+        build_pe(
+            sections=(
+                SectionSpec(".text", b"\x90" * 64, SCN_CODE),
+                SectionSpec(".rdata", bytes(64) + sm4.patterns[0] + bytes(64)),
+            ),
+            imports=(("kernel32.dll", ("ExitProcess",)),),
+        )
+    )
+
+    document = json.loads(
+        serialize(scan_paths((binary,), signatures, tool_version="test"), reproducible=True)
+    )
+    components = {
+        component["name"]: component
+        for component in document["components"]
+        if component.get("type") == "cryptographic-asset"
+    }
+    assert "SM4" in components, f"contributed signature not reported: {sorted(components)}"
+
+    properties = components["SM4"]["cryptoProperties"]
+    assert properties["assetType"] == "algorithm"
+    assert properties["algorithmProperties"]["nistQuantumSecurityLevel"] == 1
+    assert components["SM4"]["evidence"]["occurrences"], "a finding with no offset is not evidence"
