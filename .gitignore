@@ -15,3 +15,7 @@ htmlcov/
 
 # built, never committed (test-plan §4)
 corpus/build/
+
+# planning docs and local agent instructions - never tracked
+/plans/
+/CLAUDE.md

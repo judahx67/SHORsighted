@@ -60,8 +60,8 @@ it. The short version: cryptography whose tables are computed or masked at start
 `-O2` to fold away, big integers stored in machine-word limbs, and algorithm names the legacy CryptoAPI passes
 as integers. The high-entropy heuristic measured 0.038 precision and **ships disabled**.
 
-Planning docs (`01requirements.md` … `05roadmap.md`) are the source of truth; `04implementationhandoff.md`
-holds the build order.
+Requirements, design, and the build order live outside the repo. What ships here is the code, the corpus, the
+evaluation, and [`LIMITATIONS.md`](LIMITATIONS.md).
 
 ## What it promises
 

@@ -7,7 +7,7 @@ directory (FR-9). Adding an algorithm means adding data plus a test fixture — 
 
 If you find yourself about to write a byte pattern inside a `.py` file: stop, it belongs here. (◕‿◕)
 
-Format and per-file layout are specified in `02design.md` §4. Files arrive with their slices:
+Format and per-file layout are specified in the design doc §4. Files arrive with their slices:
 
 - `imports.toml` — slice 3
 - `constants/*.toml`, `confusables.toml` — slice 5

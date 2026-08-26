@@ -33,7 +33,7 @@ python -m eval.run --check         # fails if confidence.toml has drifted
 
 ## Traceability
 
-Which test holds each acceptance criterion up (`01requirements.md` §6).
+Which test holds each acceptance criterion up (requirements §6).
 
 | AC | Claim | Where it is checked |
 |---|---|---|
