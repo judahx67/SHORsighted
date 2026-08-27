@@ -95,7 +95,12 @@ $ python -m eval.run --check     # fails if confidence.toml has drifted
 ```
 
 Detection knowledge lives in `shorsighted/signatures/data/*.toml`, never in Python. A byte pattern inside a
-`.py` file is a bug. See [`corpus/README.md`](corpus/README.md) for how to add a sample.
+`.py` file is a bug. Adding one needs no Python at all - [`CONTRIBUTING.md`](CONTRIBUTING.md) walks the path,
+and [`corpus/README.md`](corpus/README.md) covers adding a corpus sample.
+
+Releases are built from a tag by [`release.yml`](.github/workflows/release.yml) and carry a signed build
+provenance attestation; [`SECURITY.md`](SECURITY.md) has the verification commands and the threat model.
+Changes worth knowing about are in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 
