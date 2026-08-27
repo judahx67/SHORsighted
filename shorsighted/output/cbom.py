@@ -94,6 +94,13 @@ def _metadata(result: ScanResult, *, reproducible: bool) -> dict[str, object]:
         {
             "signature-version": result.signature_version,
             "skipped-non-pe": str(result.skipped_non_pe),
+            "scan-root": result.scan_root,
+            # What was asked of the scan, not what it found. A reader holding
+            # only this document cannot otherwise tell a clean result from a
+            # narrow one: `--detectors imports --min-confidence 0.9` and a full
+            # scan produce identical-looking emptiness (FR-13).
+            "detectors-run": ",".join(result.detectors_run),
+            "min-confidence": f"{result.min_confidence:.2f}",
         }
     )
     return metadata

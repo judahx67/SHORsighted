@@ -14,6 +14,18 @@
     },
     "properties": [
       {
+        "name": "shorsighted:detectors-run",
+        "value": "imports,constants,heuristics"
+      },
+      {
+        "name": "shorsighted:min-confidence",
+        "value": "0.00"
+      },
+      {
+        "name": "shorsighted:scan-root",
+        "value": "fixtures/cng-sample.exe"
+      },
+      {
         "name": "shorsighted:signature-version",
         "value": "df7466bd0f88180b"
       },

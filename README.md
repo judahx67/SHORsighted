@@ -47,6 +47,8 @@ $ shorsighted app.exe --format text         # summary table, no stability guaran
 $ shorsighted "C:\Program Files\Vendor"     # whole install tree
 $ shorsighted app.exe --min-confidence 0.9  # high-precision findings only
 $ shorsighted app.exe --reproducible -o bom.json
+$ shorsighted app.exe --format html -o report.html   # printable evidence report
+$ shorsighted render vendor.cbom.json -o report.html # any CycloneDX 1.6 document
 ```
 
 All three detectors work. Point it at a file or a whole install tree and it emits a CycloneDX 1.6 CBOM naming
@@ -54,6 +56,11 @@ what it found, with evidence, offsets, and NIST quantum levels. Findings that tw
 into one asset with combined evidence. Packed binaries and .NET assemblies are flagged as such rather than
 reported as clean. Every document the test suite produces is validated against the official CycloneDX 1.6
 schema in CI.
+
+`--format html` emits a self-contained evidence report — cover, summary, then findings with their evidence
+inline. It is inert HTML with no JavaScript, laid out to print, and **the PDF comes from your browser's own
+print dialog** rather than from a PDF library this tool would have to carry. `shorsighted render` points the
+same report at any conformant CycloneDX 1.6 document, including CBOMs from other tools.
 
 **What it cannot do:** see [`LIMITATIONS.md`](LIMITATIONS.md) — every entry there has a corpus sample proving
 it. The short version: cryptography whose tables are computed or masked at startup, constants small enough for

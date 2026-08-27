@@ -147,3 +147,19 @@ class ScanResult:
     errors: tuple[str, ...] = field(default_factory=tuple)
     """Scan-level problems (unreadable directory, etc). Per-file errors live on
     ScannedFile."""
+
+    scan_root: str = ""
+    """What was pointed at, as given. The per-file paths say where each finding
+    is; this says what the scan claims to cover, which is a different question
+    and the one a reader of a detached report asks first."""
+
+    detectors_run: tuple[str, ...] = ()
+    """Which detectors actually ran. Empty means all of them.
+
+    Absence of a finding means nothing without this: a scan run with
+    `--detectors imports` cannot support a claim about static linking, and a
+    reader holding only the output has no other way to know (FR-13)."""
+
+    min_confidence: float = 0.0
+    """The floor findings had to clear to be reported. Same reason as above —
+    a filtered scan looks exactly like a clean one otherwise."""

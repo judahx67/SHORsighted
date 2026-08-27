@@ -1,0 +1,555 @@
+/* Evidence report stylesheet. Design §7 tokens, §8 print rules.
+ *
+ * Every colour in this file is a var() defined in the :root block below, and a
+ * test greps for hex literals outside it. The rule exists because "just this
+ * one accent" is how a frozen palette stops being frozen.
+ *
+ * The register is a compliance document, not an application: white paper, one
+ * navy accent, gridlines on all four sides of every cell, and red reserved for
+ * the single thing that is actually bad news. Nothing is tinted for warmth.
+ */
+
+:root {
+  --sheet: #ffffff;
+  --surround: #dfe3e8;
+  --ink: #14181d;
+  --ink-secondary: #414a55;
+  --ink-muted: #6b7480;
+  --accent: #1b3a5c;
+  --accent-tint: #eef2f6;
+  --grid: #a9b4c0;
+  --danger: #b00020;
+  --chart-1: #1b3a5c;
+  --chart-2: #4a6f95;
+  --chart-3: #8ba6bf;
+  --chart-4: #c6d3df;
+  --chart-5: #dbe4ec;
+
+  --sans: Arial, "Helvetica Neue", Helvetica, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", "Consolas", "DejaVu Sans Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+  transition: none;
+  animation: none;
+}
+
+html {
+  background: var(--surround);
+}
+
+body {
+  margin: 0;
+  background: var(--sheet);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 10.5px;
+  font-weight: 400;
+  line-height: 1.28;
+}
+
+/* Screen only: paint sheets so the page breaks are visible before printing.
+ * A4 wide, not content-wide: with the same 12mm padding the print rules use,
+ * a 210mm sheet puts exactly the printed 186mm of content on screen. At the
+ * old 186mm the preview was 24mm narrower than the paper, so every line
+ * measurement taken from the browser was wrong about the PDF. */
+.sheet {
+  background: var(--sheet);
+  width: 210mm;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 12mm 12mm 14mm;
+}
+
+.sheet + .sheet {
+  border-top: 1px solid var(--grid);
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 700;
+  margin: 0;
+}
+
+/* Provenance on every sheet. Scan root left, tool/signatures/CBOM digest
+ * right, so a reader can tell which bytes any loose page came from. */
+.running-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 6mm;
+  font-family: var(--mono);
+  font-size: 8px;
+  color: var(--ink-muted);
+  border-bottom: 1px solid var(--grid);
+  padding-bottom: 0.8mm;
+  margin-bottom: 3mm;
+  white-space: nowrap;
+}
+
+/* The full path is on the cover, so clipping it here loses nothing. */
+.rh-root {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* --- cover ---------------------------------------------------------------- */
+
+/* A title page: the block centres in the height left between the running head
+ * and the claim, which stays at the foot. That needs the sheet to be a full
+ * page tall rather than as tall as its content. */
+.cover {
+  display: flex;
+  flex-direction: column;
+  min-height: 297mm;
+}
+
+.cover-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+.doc-title {
+  font-size: 22px;
+  letter-spacing: -0.2px;
+  color: var(--accent);
+  padding-bottom: 3mm;
+  border-bottom: 2px solid var(--accent);
+  margin: 0 auto;
+  min-width: 110mm;
+}
+
+.field-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--ink-muted);
+  margin: 6mm 0 0.8mm;
+}
+
+.scan-root {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 400;
+  margin: 0 0 5mm;
+  word-break: break-all;
+}
+
+.provenance {
+  width: auto;
+  margin: 0 auto;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.provenance th,
+.provenance td {
+  border: 1px solid var(--grid);
+  text-align: left;
+  vertical-align: top;
+  padding: 0.9mm 2mm;
+  font-weight: 400;
+}
+
+.provenance th {
+  background: var(--accent-tint);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+  color: var(--ink-secondary);
+  width: 26mm;
+  white-space: nowrap;
+}
+
+.provenance td {
+  font-family: var(--mono);
+  width: 41mm;
+  word-break: break-all;
+}
+
+.claim {
+  margin: 6mm 0 0;
+  padding: 2mm 2.5mm;
+  border: 1px solid var(--grid);
+  color: var(--ink-secondary);
+}
+
+.cover .claim {
+  text-align: left;
+}
+
+/* --- summary -------------------------------------------------------------- */
+
+h2 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--accent);
+  border-bottom: 1px solid var(--accent);
+  padding-bottom: 0.6mm;
+  margin: 0 0 1.5mm;
+}
+
+section + section {
+  margin-top: 3.5mm;
+}
+
+/* Four integers in one table row. They were four padded cards, which spent
+ * more paper than any other element on the page and carried the least. */
+table.data.metrics td {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+table.data.metrics td.danger {
+  color: var(--danger);
+}
+
+.chart-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--ink-muted);
+  margin: 3mm 0 1mm;
+}
+
+/* Pie left, exact counts right. The chart is never the only source of a
+ * number, and the legend swatch beside each count is what makes a slice
+ * identifiable without relying on its colour. */
+.chart-row {
+  display: flex;
+  gap: 4mm;
+  align-items: flex-start;
+}
+
+.chart-row > table {
+  flex: 1;
+  min-width: 0;
+}
+
+svg.pie {
+  flex: 0 0 30mm;
+  width: 30mm;
+  height: 30mm;
+}
+
+svg.pie path,
+svg.pie circle {
+  stroke: var(--sheet);
+  stroke-width: 1.5;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.levels .level-name {
+  white-space: nowrap;
+}
+
+.levels .level-count {
+  width: 14mm;
+  text-align: right;
+  font-family: var(--mono);
+}
+
+.level-0 .level-name,
+.level-0 .level-count {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+td.swatch-cell {
+  width: 7mm;
+}
+
+.swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--grid);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+/* `background` paints the legend swatch, `fill` paints the pie slice. One
+ * rule for both, so the two can never disagree about what a colour means. */
+.fill-ok {
+  background: var(--chart-4);
+  fill: var(--chart-4);
+}
+.fill-degraded-packed {
+  background: var(--chart-3);
+  fill: var(--chart-3);
+}
+.fill-unsupported-managed {
+  background: var(--chart-2);
+  fill: var(--chart-2);
+}
+.fill-error {
+  background: var(--danger);
+  fill: var(--danger);
+}
+.fill-other {
+  background: var(--ink-muted);
+  fill: var(--ink-muted);
+}
+
+.fill-level-0 {
+  background: var(--danger);
+  fill: var(--danger);
+}
+.fill-level-1 {
+  background: var(--chart-1);
+  fill: var(--chart-1);
+}
+.fill-level-2 {
+  background: var(--chart-2);
+  fill: var(--chart-2);
+}
+.fill-level-3 {
+  background: var(--chart-3);
+  fill: var(--chart-3);
+}
+.fill-level-4 {
+  background: var(--chart-4);
+  fill: var(--chart-4);
+}
+.fill-level-5 {
+  background: var(--chart-5);
+  fill: var(--chart-5);
+}
+.fill-level-6 {
+  background: var(--accent-tint);
+  fill: var(--accent-tint);
+}
+
+/* --- tables --------------------------------------------------------------- */
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+/* Gridlines on all four sides of every cell. A rule that stops where the last
+ * word stops reads as a list; an audit table reads as a table. */
+table.data th,
+table.data td {
+  border: 1px solid var(--grid);
+  padding: 0.7mm 1.5mm;
+  text-align: left;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+table.data thead th {
+  background: var(--accent);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+  color: var(--sheet);
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+td.num,
+td.mono {
+  font-family: var(--mono);
+}
+
+td.num {
+  text-align: right;
+}
+
+.note {
+  color: var(--ink-secondary);
+  margin-top: 2mm;
+}
+
+/* --- findings ------------------------------------------------------------- */
+
+table.file {
+  margin-top: 2.5mm;
+}
+
+/* Repeated at the top of a continued page by `display: table-header-group`.
+ * A div header cannot do this, and a file's findings are exactly the thing
+ * that runs past a page boundary. */
+th.file-head {
+  font-size: 10.5px;
+}
+
+/* The flex lives on a div inside the cell, never on the `th` itself: a th with
+ * `display: flex` leaves table layout, taking its colspan and the header-group
+ * repeat with it. */
+.file-head-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+  align-items: baseline;
+}
+
+/* `min-width: 0` so a long path shrinks this item instead of shoving the
+ * hash and architecture off the right edge of the sheet. */
+.file-id {
+  display: flex;
+  gap: 2mm;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.file-path {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  word-break: break-all;
+}
+
+.file-facts {
+  font-family: var(--mono);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-block;
+  border: 1px solid var(--sheet);
+  padding: 0 1mm;
+  font-size: 9px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.finding {
+  break-inside: avoid;
+}
+
+.asset-name {
+  font-weight: 700;
+}
+
+td.level.zero {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.evidence {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-secondary);
+  margin-top: 1mm;
+}
+
+.evidence td {
+  border: 1px solid var(--grid);
+  padding: 0.5mm 1.2mm;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+/* Percentages, never px: this table is nested inside a cell of the findings
+ * table, and fixed pixel columns wider than that cell squeeze the description
+ * to nothing rather than overflowing visibly. Percentages cannot outgrow their
+ * container, so the failure mode does not exist.
+ *
+ * The two label columns also refuse to wrap. Their contents are short closed
+ * sets, and `heuristics` broken across two lines as `heuristic` + `s` reads as
+ * a rendering fault rather than as a narrow column. */
+.evidence .detector {
+  width: 15%;
+  white-space: nowrap;
+}
+
+.evidence .signature {
+  width: 20%;
+}
+
+.evidence .offset {
+  width: 18%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.empty {
+  color: var(--ink-muted);
+}
+
+/* --- footer --------------------------------------------------------------- */
+
+.footer {
+  font-family: var(--mono);
+  font-size: 8px;
+  color: var(--ink-muted);
+  border-top: 1px solid var(--grid);
+  padding-top: 0.8mm;
+  margin-top: 3.5mm;
+}
+
+/* --- print ---------------------------------------------------------------- */
+
+/* 1mm short of the intended 12/12/14: the missing millimetre is padding on
+ * the sheet instead. See the .sheet rule under @media print. */
+@page {
+  size: A4;
+  margin: 11mm 11mm 13mm;
+}
+
+@media print {
+  html {
+    background: var(--sheet);
+  }
+
+  /* 1mm of padding, not zero, so no gridline sits exactly on the page-area
+   * boundary. A collapsed table draws half of its outer border outside its own
+   * box, so a full-width table flush against that edge loses its left and
+   * right rules to the print clip - the report's own frame, missing, on every
+   * table on every page. The millimetre comes out of the @page margin above,
+   * so the printed margins are unchanged. */
+  .sheet {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 1mm;
+    border-top: 0;
+  }
+
+  /* The page box, not the sheet: in print the 12/14mm lives in @page, so the
+   * cover's content column is that much shorter than a full A4. */
+  .cover {
+    min-height: 271mm;
+  }
+
+  .page-break {
+    break-after: page;
+  }
+
+  /* Repeats on every printed sheet in Chrome; Firefox differs, which is why
+   * docs/print-check.md checks it in both. Page numbers are not here on
+   * purpose - see design §8 A-2, no browser implements @page counters. */
+  .footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    background: var(--sheet);
+  }
+
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+}
