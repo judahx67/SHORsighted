@@ -44,11 +44,19 @@ print preview in **both** Chrome and Firefox.
 - [ ] **Summary is its own sheet.** Page 2 holds the metrics, the level
       chart, and coverage. Expansions never push it onto a third sheet;
       an expansion that does not fit is cut, not carried.
-- [ ] **Footer on every page.** Tool version, signature version, and CBOM
-      hash appear on every sheet — this is the item Firefox is most
-      likely to fail, since it treats fixed elements differently from
-      Chrome. Page numbers are **not** the document's job (design §8);
-      check them by enabling the browser's own headers and footers.
+- [ ] **Provenance on every page.** Tool version, signature version, and
+      CBOM hash. The running head puts it at the top of each sheet; the
+      fixed footer is what carries it onto the *continuation* pages of a
+      long findings section, and that is the item Firefox is most likely
+      to fail, since it treats fixed elements differently from Chrome.
+      Page numbers are **not** the document's job (design §8); check them
+      by enabling the browser's own headers and footers.
+- [ ] **Exported with Save as PDF, not a print driver.** In Chrome or
+      Edge the destination must be *Save as PDF* with Background graphics
+      on. *Microsoft Print to PDF* is a virtual printer: it applies the
+      driver's own hardware margins on top of `@page`, drops background
+      fills, and snaps hairlines. A PDF whose `/Producer` reads
+      `Microsoft: Print To PDF` proves nothing about this stylesheet.
 - [ ] **Grayscale legibility.** Print or export in grayscale: every
       status is still readable from its text, coverage segments are still
       distinguishable, and the level 0 rows are still identifiable

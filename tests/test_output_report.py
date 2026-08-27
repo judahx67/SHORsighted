@@ -453,9 +453,13 @@ def test_the_cbom_digest_is_over_the_bytes_the_reader_can_diff() -> None:
 
 
 def _metric(rendered: str, label: str) -> int:
-    match = re.search(rf'{re.escape(label)}</div><div class="metric-value[^"]*">(\d+)<', rendered)
-    assert match, f"metric {label!r} not found in the report"
-    return int(match.group(1))
+    table = rendered.split('<table class="data metrics">')[1].split("</table>")[0]
+    columns = re.findall(r"<th>([^<]*)</th>", table)
+    values = re.findall(r'<td class="figure[^"]*">(\d+)<', table)
+    assert len(columns) == len(values), f"metrics table is lopsided: {columns} vs {values}"
+    figures = dict(zip(columns, values, strict=True))
+    assert label in figures, f"metric {label!r} not found in the report"
+    return int(figures[label])
 
 
 # --- review findings: the page must not contradict itself -------------------
@@ -591,7 +595,7 @@ def test_a_finding_with_no_level_is_charted_as_unstated() -> None:
 
 def test_the_cover_carries_only_the_cover(mixed_report: str) -> None:
     """Title, what was scanned, how it was scanned, and the claim at the foot."""
-    cover = mixed_report.split('class="sheet page-break cover"')[1].split("</div>")[0]
+    cover = mixed_report.split('class="sheet page-break cover"')[1].split('class="sheet')[0]
     assert report.TITLE in cover
     assert "Directory scanned" in cover
     assert report.CLAIM in cover
@@ -635,3 +639,23 @@ def test_a_detector_name_never_wraps() -> None:
     css = CSS.read_text(encoding="utf-8")
     block = css[css.index(".evidence .detector") : css.index(".empty {")]
     assert block.count("white-space: nowrap") == 2, "detector and offset must both refuse to wrap"
+
+
+def test_provenance_appears_on_every_sheet(mixed_report: str) -> None:
+    """A loose page has to name the bytes it was rendered from.
+
+    Tool version, signature version, CBOM digest: enough for a reader to fetch
+    the JSON and diff it. The running head carries it per sheet; the fixed
+    footer is what carries it onto continuation pages, and print engines
+    disagree about that, so both exist.
+    """
+    digest = re.search(r"cbom ([0-9a-f]{4}…[0-9a-f]{4})", mixed_report)
+    assert digest, "no CBOM digest in the report"
+    sheets = mixed_report.split('<div class="sheet')[1:]
+    assert len(sheets) == 3
+    for sheet in sheets:
+        head = sheet.split("</div>")[0]
+        assert "running-head" in head, "a sheet opens without its provenance"
+        assert digest.group(1) in head
+        assert "signatures" in head
+    assert mixed_report.count('class="footer"') == 1

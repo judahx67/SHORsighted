@@ -117,11 +117,12 @@ class _Report:
     # --- document -----------------------------------------------------------
 
     def render(self) -> str:
+        head = self._running_head()
         body = "\n".join(
             [
-                _sheet(self._cover(), page_break=True, extra="cover"),
-                _sheet(self._summary(), page_break=True),
-                _sheet(self._body()),
+                _sheet(head, self._cover(), page_break=True, extra="cover"),
+                _sheet(head, self._summary(), page_break=True),
+                _sheet(head, self._body()),
             ]
         )
         css = resources.files(__package__).joinpath("report.css").read_text(encoding="utf-8")
@@ -185,13 +186,17 @@ class _Report:
             ("Findings", str(findings), False),
             ("Quantum-vulnerable", str(vulnerable), vulnerable > 0),
         ]
-        cards = "".join(
-            f'<div class="metric"><div class="metric-label">{escape(label)}</div>'
-            f'<div class="metric-value{" danger" if danger else ""}">{escape(value)}</div></div>'
-            for label, value, danger in metrics
+        # A table, not four padded cards. The cards were the one element on
+        # the page that spent a lot of paper to carry four integers, and this
+        # report is read next to a migration backlog, not on a wall.
+        labels = "".join(f"<th>{escape(label)}</th>" for label, _, _ in metrics)
+        values = "".join(
+            f'<td class="figure{" danger" if danger else ""}">{escape(value)}</td>'
+            for _, value, danger in metrics
         )
         return (
-            f'<section><h2>Summary</h2>\n<div class="metrics">{cards}</div>\n'
+            f'<section><h2>Summary</h2>\n<table class="data metrics">'
+            f"<thead><tr>{labels}</tr></thead><tbody><tr>{values}</tr></tbody></table>\n"
             f"{self._level_chart()}</section>\n"
             f"{self._coverage()}"
         )
@@ -448,13 +453,32 @@ class _Report:
 
     # --- shared -------------------------------------------------------------
 
-    def _footer(self) -> str:
+    def _provenance(self) -> str:
+        """Tool version, signature version, CBOM digest.
+
+        This is what lets a reader diff the bytes the report was rendered from,
+        so it appears on every sheet as a running head and again in the running
+        footer. Twice is deliberate: the footer is `position: fixed`, which is
+        what carries it onto the *continuation* pages of a long findings
+        section, and that is the mechanism print engines disagree about.
+        """
         parts = [
             self._tool(),
             f"signatures {_meta_prop(self.document, 'signature-version') or PLACEHOLDER}",
             f"cbom {_short_hash(self.digest)}",
         ]
-        return f'<div class="footer">{escape(" · ".join(parts))}</div>'
+        return escape(" · ".join(parts))
+
+    def _running_head(self) -> str:
+        root = self._scan_root() or TITLE
+        return (
+            '<div class="running-head">'
+            f'<span class="rh-root">{escape(root)}</span>'
+            f"<span>{self._provenance()}</span></div>"
+        )
+
+    def _footer(self) -> str:
+        return f'<div class="footer">{self._provenance()}</div>'
 
     def _tool(self) -> str:
         tools = _sequence(
@@ -483,9 +507,9 @@ def _file_table(head: str, rows: str) -> str:
     )
 
 
-def _sheet(content: str, *, page_break: bool = False, extra: str = "") -> str:
+def _sheet(head: str, content: str, *, page_break: bool = False, extra: str = "") -> str:
     classes = " ".join(filter(None, ["sheet", "page-break" if page_break else "", extra]))
-    return f'<div class="{classes}">\n{content}\n</div>'
+    return f'<div class="{classes}">\n{head}\n{content}\n</div>'
 
 
 def _sequence(value: Any) -> list[Mapping[str, Any]]:
