@@ -43,9 +43,9 @@ body {
   background: var(--sheet);
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 400;
-  line-height: 1.4;
+  line-height: 1.28;
 }
 
 /* Screen only: paint sheets so the page breaks are visible before printing.
@@ -79,11 +79,11 @@ h3 {
   justify-content: space-between;
   gap: 6mm;
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: 8px;
   color: var(--ink-muted);
   border-bottom: 1px solid var(--grid);
-  padding-bottom: 1mm;
-  margin-bottom: 4mm;
+  padding-bottom: 0.8mm;
+  margin-bottom: 3mm;
   white-space: nowrap;
 }
 
@@ -105,27 +105,25 @@ h3 {
 }
 
 .doc-title {
-  font-size: 26px;
+  font-size: 22px;
   letter-spacing: -0.2px;
   color: var(--accent);
-  padding-bottom: 4mm;
+  padding-bottom: 3mm;
   border-bottom: 2px solid var(--accent);
 }
 
 .field-label {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
   color: var(--ink-muted);
-  margin: 8mm 0 1mm;
+  margin: 6mm 0 0.8mm;
 }
 
 .scan-root {
   font-family: var(--mono);
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 400;
-  margin: 0 0 7mm;
+  margin: 0 0 5mm;
   word-break: break-all;
 }
 
@@ -139,7 +137,7 @@ h3 {
   border: 1px solid var(--grid);
   text-align: left;
   vertical-align: top;
-  padding: 1.2mm 2.5mm;
+  padding: 0.9mm 2mm;
   font-weight: 400;
 }
 
@@ -159,8 +157,8 @@ h3 {
 }
 
 .claim {
-  margin: 8mm 0 0;
-  padding: 2.5mm 3mm;
+  margin: 6mm 0 0;
+  padding: 2mm 2.5mm;
   border: 1px solid var(--grid);
   border-left: 3px solid var(--accent);
   color: var(--ink-secondary);
@@ -173,27 +171,26 @@ h3 {
 /* --- summary -------------------------------------------------------------- */
 
 h2 {
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.4px;
   color: var(--accent);
   border-bottom: 1px solid var(--accent);
-  padding-bottom: 0.8mm;
-  margin: 0 0 2mm;
+  padding-bottom: 0.6mm;
+  margin: 0 0 1.5mm;
 }
 
 section + section {
-  margin-top: 5mm;
+  margin-top: 3.5mm;
 }
 
 /* Four integers in one table row. They were four padded cards, which spent
  * more paper than any other element on the page and carried the least. */
 table.data.metrics td {
   font-family: var(--mono);
-  font-size: 17px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--accent);
-  padding: 1mm 2mm 1.4mm;
 }
 
 table.data.metrics td.danger {
@@ -201,12 +198,10 @@ table.data.metrics td.danger {
 }
 
 .chart-label {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
   color: var(--ink-muted);
-  margin: 4mm 0 1.5mm;
+  margin: 3mm 0 1mm;
 }
 
 /* Level chart: label, bar, exact count. The count is never only in the bar. */
@@ -217,7 +212,7 @@ table.data.metrics td.danger {
 
 .levels td {
   border: 1px solid var(--grid);
-  padding: 0.8mm 2mm;
+  padding: 0.6mm 1.5mm;
   font-weight: 400;
   text-align: left;
   vertical-align: middle;
@@ -235,7 +230,7 @@ table.data.metrics td.danger {
 }
 
 .bar {
-  height: 7px;
+  height: 6px;
   background: var(--chart-1);
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
@@ -259,9 +254,9 @@ table.data.metrics td.danger {
 .coverage {
   display: flex;
   width: 100%;
-  height: 13px;
+  height: 10px;
   border: 1px solid var(--grid);
-  margin-bottom: 2mm;
+  margin-bottom: 1.5mm;
   overflow: hidden;
 }
 
@@ -274,8 +269,8 @@ table.data.metrics td.danger {
 
 .swatch {
   display: inline-block;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border: 1px solid var(--grid);
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
@@ -310,7 +305,7 @@ table.data {
 table.data th,
 table.data td {
   border: 1px solid var(--grid);
-  padding: 1mm 2mm;
+  padding: 0.7mm 1.5mm;
   text-align: left;
   vertical-align: top;
   word-break: break-word;
@@ -321,10 +316,8 @@ table.data thead th {
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
   color: var(--sheet);
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 td.num,
@@ -344,16 +337,14 @@ td.num {
 /* --- findings ------------------------------------------------------------- */
 
 table.file {
-  margin-top: 3.5mm;
+  margin-top: 2.5mm;
 }
 
 /* Repeated at the top of a continued page by `display: table-header-group`.
  * A div header cannot do this, and a file's findings are exactly the thing
  * that runs past a page boundary. */
 th.file-head {
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: 11px;
+  font-size: 10.5px;
 }
 
 /* The flex lives on a div inside the cell, never on the `th` itself: a th with
@@ -377,7 +368,7 @@ th.file-head {
 
 .file-path {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 400;
   word-break: break-all;
 }
@@ -391,8 +382,8 @@ th.file-head {
 .badge {
   display: inline-block;
   border: 1px solid var(--sheet);
-  padding: 0 1.4mm;
-  font-size: 10px;
+  padding: 0 1mm;
+  font-size: 9px;
   font-weight: 400;
   white-space: nowrap;
 }
@@ -402,7 +393,6 @@ th.file-head {
 }
 
 .asset-name {
-  font-size: 12px;
   font-weight: 700;
 }
 
@@ -416,14 +406,14 @@ td.level.zero {
   border-collapse: collapse;
   table-layout: fixed;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 9.5px;
   color: var(--ink-secondary);
-  margin-top: 1.5mm;
+  margin-top: 1mm;
 }
 
 .evidence td {
   border: 1px solid var(--grid);
-  padding: 0.6mm 1.5mm;
+  padding: 0.5mm 1.2mm;
   vertical-align: top;
   word-break: break-word;
 }
@@ -459,11 +449,11 @@ td.level.zero {
 
 .footer {
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: 8px;
   color: var(--ink-muted);
   border-top: 1px solid var(--grid);
-  padding-top: 1mm;
-  margin-top: 5mm;
+  padding-top: 0.8mm;
+  margin-top: 3.5mm;
 }
 
 /* --- print ---------------------------------------------------------------- */
