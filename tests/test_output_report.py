@@ -10,6 +10,7 @@ labelled, a filename that escapes into markup. Layout is checked by eye
 import json
 import os
 import re
+from html import escape
 from pathlib import Path
 
 import pytest
@@ -325,9 +326,14 @@ def test_a_hostile_filename_cannot_escape_into_markup(
         pytest.skip("this filesystem will not take the hostile name")
 
     rendered = render_tree(tmp_path, signatures)
-    assert "<img src=x" not in rendered
-    assert "onerror=" not in rendered
-    assert "&lt;img src=x onerror=" in rendered
+    # `onerror=` as text is inert; what would be dangerous is a tag or an
+    # attribute boundary, so those are what the assertions look for. An earlier
+    # version banned the substring outright and contradicted the line below it,
+    # which nobody noticed because Windows refuses the filename and skips.
+    assert HOSTILE not in rendered, "the raw name reached the markup"
+    assert "<img" not in rendered, "the payload opened a tag"
+    assert 'onerror="' not in rendered, "the payload opened an attribute"
+    assert escape(HOSTILE) in rendered, "the name must still be shown, escaped"
 
 
 def test_every_interpolated_field_is_escaped() -> None:
