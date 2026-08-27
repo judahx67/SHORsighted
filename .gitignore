@@ -19,3 +19,6 @@ corpus/build/
 # planning docs and local agent instructions - never tracked
 /plans/
 /CLAUDE.md
+
+# local scratch, not a deliverable
+/test.pdf
