@@ -154,7 +154,12 @@ jobs:
   publish:
     name: Publish to PyPI
     needs: [version, build]
-    if: github.ref_type == 'tag' && !inputs.dry-run
+    # Opt-in, and off until someone turns it on: set the repository variable
+    # PYPI_PUBLISH to "true" once a Trusted Publisher exists for this workflow.
+    # Until then a tag still produces a full GitHub release - artifacts,
+    # checksums and provenance - and this job is skipped rather than failing at
+    # the upload with a half-finished release behind it.
+    if: github.ref_type == 'tag' && !inputs.dry-run && vars.PYPI_PUBLISH == 'true'
     runs-on: ubuntu-latest
     # Trusted Publishing, so no API token is stored anywhere. The environment is
     # the approval gate: configure required reviewers on it, because this is the

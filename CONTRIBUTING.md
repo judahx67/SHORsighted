@@ -76,9 +76,14 @@ would have caught shipped without it.
 
 ## Releasing
 
-Maintainers only, and it needs one-time setup: a PyPI Trusted Publisher for
-`shorsighted` pointing at this repository and the `release.yml` workflow, plus a
-`pypi` environment here with required reviewers.
+Maintainers only.
+
+A tag produces a GitHub release out of the box. **Publishing to PyPI is off**
+until three things exist: a Trusted Publisher for `shorsighted` pointing at this
+repository and `release.yml`, a `pypi` environment here with required reviewers,
+and the repository variable `PYPI_PUBLISH` set to `true`. Until then the publish
+job is skipped rather than failing at the upload with a half-finished release
+behind it.
 
 1. Bump `__version__` in `shorsighted/__init__.py`. That is the single source —
    `pyproject.toml` reads it.
@@ -88,8 +93,8 @@ Maintainers only, and it needs one-time setup: a PyPI Trusted Publisher for
 
 `release.yml` then re-runs the full gate and the corpus evaluation, refuses to
 proceed if the tag and `__version__` disagree or the version is a pre-release,
-builds, checks the sdist installs and still detects, attests provenance, waits
-for approval on the `pypi` environment, publishes, and cuts the GitHub release
-with checksums attached.
+builds, checks the sdist installs and still detects, attests provenance, cuts
+the GitHub release with checksums attached, and — once `PYPI_PUBLISH` is on —
+waits for approval on the `pypi` environment and publishes.
 
 Run it with `workflow_dispatch` first if you want everything except the publish.

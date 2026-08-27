@@ -68,9 +68,29 @@ reach: a binary you did not build and have no source for.
   filter, `--timeout` per file, `--appendix-limit` for the report's clean-file
   list.
 - **Release pipeline.** Tag-triggered build behind the same gate a pull request
-  runs plus the corpus evaluation, signed build provenance attestation, PyPI
-  Trusted Publishing behind an approval environment, and checksums on the
-  GitHub release.
+  runs plus the corpus evaluation, signed build provenance attestation, and
+  checksums on the GitHub release.
+
+### Installing
+
+**Not on PyPI yet** — `pip install shorsighted` will not find this. Take the
+wheel from the release assets below:
+
+```console
+$ pip install ./shorsighted-0.1.0-py3-none-any.whl
+$ shorsighted --version
+```
+
+Verify it first if you like; every artifact carries a signed build provenance
+attestation, and `SHA256SUMS` is attached:
+
+```console
+$ gh attestation verify shorsighted-0.1.0-py3-none-any.whl --repo judahx67/SHORsighted
+$ sha256sum --check --ignore-missing SHA256SUMS
+```
+
+The pipeline can publish to PyPI, and does so through Trusted Publishing behind
+an approval environment, but that is switched off for this release.
 
 ### Known limits
 
