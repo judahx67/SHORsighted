@@ -177,6 +177,12 @@ section + section {
   padding: 2.5mm 3mm;
 }
 
+/* Only the cards after the first share a gridline. Pulling the first one left
+ * too would push its border outside the page area, where print clips it. */
+.metric:first-child {
+  margin-left: 0;
+}
+
 .metric-label {
   font-size: 10px;
   text-transform: uppercase;
@@ -426,9 +432,14 @@ td.level.zero {
 /* Percentages, never px: this table is nested inside a cell of the findings
  * table, and fixed pixel columns wider than that cell squeeze the description
  * to nothing rather than overflowing visibly. Percentages cannot outgrow their
- * container, so the failure mode does not exist. */
+ * container, so the failure mode does not exist.
+ *
+ * The two label columns also refuse to wrap. Their contents are short closed
+ * sets, and `heuristics` broken across two lines as `heuristic` + `s` reads as
+ * a rendering fault rather than as a narrow column. */
 .evidence .detector {
-  width: 14%;
+  width: 15%;
+  white-space: nowrap;
 }
 
 .evidence .signature {
@@ -436,8 +447,9 @@ td.level.zero {
 }
 
 .evidence .offset {
-  width: 17%;
+  width: 18%;
   text-align: right;
+  white-space: nowrap;
 }
 
 .empty {
@@ -457,9 +469,11 @@ td.level.zero {
 
 /* --- print ---------------------------------------------------------------- */
 
+/* 1mm short of the intended 12/12/14: the missing millimetre is padding on
+ * the sheet instead. See the .sheet rule under @media print. */
 @page {
   size: A4;
-  margin: 12mm 12mm 14mm;
+  margin: 11mm 11mm 13mm;
 }
 
 @media print {
@@ -467,11 +481,17 @@ td.level.zero {
     background: var(--sheet);
   }
 
+  /* 1mm of padding, not zero, so no gridline sits exactly on the page-area
+   * boundary. A collapsed table draws half of its outer border outside its own
+   * box, so a full-width table flush against that edge loses its left and
+   * right rules to the print clip - the report's own frame, missing, on every
+   * table on every page. The millimetre comes out of the @page margin above,
+   * so the printed margins are unchanged. */
   .sheet {
     width: auto;
     max-width: none;
     margin: 0;
-    padding: 0;
+    padding: 1mm;
     border-top: 0;
   }
 

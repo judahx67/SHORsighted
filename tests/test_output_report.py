@@ -596,3 +596,42 @@ def test_the_cover_carries_only_the_cover(mixed_report: str) -> None:
     assert "Directory scanned" in cover
     assert report.CLAIM in cover
     assert "Summary" not in cover
+
+
+def test_the_offset_column_is_absent_when_nothing_has_an_offset() -> None:
+    """An import is a table entry, not a byte position, so import evidence has
+    no offset. A boxed empty cell on every row reads as a value that failed to
+    render rather than as one that was never there."""
+
+    def document(context: str, **extra: object) -> str:
+        return json.dumps(
+            {
+                "components": [
+                    {
+                        "type": "cryptographic-asset",
+                        "bom-ref": "a1",
+                        "name": "CryptoAPI",
+                        "evidence": {
+                            "occurrences": [
+                                {"location": "x", "additionalContext": context, **extra}
+                            ]
+                        },
+                    }
+                ]
+            }
+        )
+
+    imports_only = report.render(document("imports/capi-advapi32: imports CryptEncrypt"))
+    assert 'class="offset"' not in imports_only
+
+    with_offset = report.render(document("constants/aes-sbox-fwd: forward S-box", offset=1234))
+    assert 'class="offset"' in with_offset
+    assert "0x4D2" in with_offset
+
+
+def test_a_detector_name_never_wraps() -> None:
+    """`heuristics` broken across two lines as `heuristic` + `s` reads as a
+    rendering fault, and the evidence table is where it happened."""
+    css = CSS.read_text(encoding="utf-8")
+    block = css[css.index(".evidence .detector") : css.index(".empty {")]
+    assert block.count("white-space: nowrap") == 2, "detector and offset must both refuse to wrap"

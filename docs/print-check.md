@@ -60,9 +60,17 @@ print preview in **both** Chrome and Firefox.
       files or states the omission with the threshold named.
 - [ ] **No orphaned headings.** No section heading sits alone at the
       bottom of a page.
-- [ ] **Margins hold.** `12mm 12mm 14mm` on A4, nothing colliding with
-      the running footer. These are deliberately tight — paper costs
-      money — so this is the check most likely to catch a regression.
+- [ ] **Every table keeps all four rules.** Look at the left and right
+      edges of the widest tables. A collapsed table draws half its outer
+      border outside its own box, so one flush against the page-area
+      boundary loses those rules to the print clip — the report's own
+      frame, missing, on every page. The 1mm of sheet padding is what
+      prevents it.
+- [ ] **Margins hold.** `12mm 12mm 14mm` on A4 — split as an 11/11/13mm
+      `@page` margin plus 1mm of sheet padding, so check the total, not
+      the declaration. Nothing collides with the running footer. These
+      are deliberately tight — paper costs money — so this is the check
+      most likely to catch a regression.
 
 ## Record
 

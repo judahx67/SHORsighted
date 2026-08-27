@@ -364,13 +364,20 @@ class _Report:
         occurrences = _sequence(_mapping(asset.get("evidence")).get("occurrences"))
         if not occurrences:
             return f'<div class="evidence empty">{escape("no evidence recorded")}</div>'
+        parsed = [_evidence_row(occurrence) for occurrence in occurrences]
+        # Import evidence carries no offset: an import is a table entry, not a
+        # byte position. The column only exists when something fills it, since
+        # a boxed empty cell on every row reads as a value that failed to
+        # render rather than as one that was never there.
+        with_offsets = any(offset for *_, offset in parsed)
         rows = "".join(
             "<tr>"
             f'<td class="detector">{escape(detector)}</td>'
             f'<td class="signature">{escape(signature)}</td>'
             f"<td>{escape(description)}</td>"
-            f'<td class="offset">{escape(offset)}</td></tr>'
-            for detector, signature, description, offset in map(_evidence_row, occurrences)
+            + (f'<td class="offset">{escape(offset)}</td>' if with_offsets else "")
+            + "</tr>"
+            for detector, signature, description, offset in parsed
         )
         return f'<table class="evidence">{rows}</table>'
 
