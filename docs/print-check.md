@@ -38,9 +38,11 @@ print preview in **both** Chrome and Firefox.
       line that fits in the browser fits in the PDF. If they disagree,
       the preview is not a preview.
 - [ ] **Cover is its own sheet.** Page 1 carries the title, the directory
-      scanned, the provenance table, and nothing else. The claim note sits
-      at the foot of the sheet, not directly under the table. Nothing from
-      the summary bleeds onto it.
+      scanned, the provenance table, and nothing else. The block sits
+      centred on the page; the claim note sits at the foot of the sheet,
+      not directly under the table. Nothing from the summary bleeds onto
+      it, and the sheet does not spill onto a second page — the cover's
+      height is set for the print page box, not for A4.
 - [ ] **Summary is its own sheet.** Page 2 holds the metrics, the level
       chart, and coverage. Expansions never push it onto a third sheet;
       an expansion that does not fit is cut, not carried.

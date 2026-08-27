@@ -659,3 +659,17 @@ def test_provenance_appears_on_every_sheet(mixed_report: str) -> None:
         assert digest.group(1) in head
         assert "signatures" in head
     assert mixed_report.count('class="footer"') == 1
+
+
+def test_the_cover_block_centres_and_the_claim_stays_at_the_foot() -> None:
+    """The title block is one flex child so it can centre in the height left
+    over; the claim is its sibling, not its content, or it would centre too."""
+    rendered = report.render('{"bomFormat": "CycloneDX", "specVersion": "1.6"}')
+    block = rendered.split('<div class="cover-block">')[1]
+    assert report.TITLE in block.split("</div>")[0]
+    assert 'class="claim"' not in block.split("</div>")[0]
+
+    css = CSS.read_text(encoding="utf-8")
+    rule = css.split(".cover-block {")[1].split("}")[0]
+    assert "flex: 1" in rule
+    assert "justify-content: center" in rule

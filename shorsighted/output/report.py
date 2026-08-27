@@ -165,11 +165,14 @@ class _Report:
             + "</tr>"
             for pair in rows
         )
+        # The block is one flex child so it can centre in whatever height is
+        # left between the running head and the claim, which stays at the foot.
         return (
+            '<div class="cover-block">'
             f'<h1 class="doc-title">{escape(TITLE)}</h1>\n'
             '<p class="field-label">Directory scanned</p>'
             f'<p class="scan-root">{escape(self._scan_root() or PLACEHOLDER)}</p>\n'
-            f'<table class="provenance">{cells}</table>\n'
+            f'<table class="provenance">{cells}</table></div>\n'
             f'<p class="claim">{escape(CLAIM)}</p>'
         )
 

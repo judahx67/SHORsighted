@@ -96,12 +96,21 @@ h3 {
 
 /* --- cover ---------------------------------------------------------------- */
 
-/* The claim is pinned to the foot of the cover by `margin-top: auto`, which
- * needs the sheet to be a full page tall rather than as tall as its content. */
+/* A title page: the block centres in the height left between the running head
+ * and the claim, which stays at the foot. That needs the sheet to be a full
+ * page tall rather than as tall as its content. */
 .cover {
   display: flex;
   flex-direction: column;
   min-height: 297mm;
+}
+
+.cover-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
 }
 
 .doc-title {
@@ -110,6 +119,8 @@ h3 {
   color: var(--accent);
   padding-bottom: 3mm;
   border-bottom: 2px solid var(--accent);
+  margin: 0 auto;
+  min-width: 110mm;
 }
 
 .field-label {
@@ -128,8 +139,10 @@ h3 {
 }
 
 .provenance {
-  width: 100%;
+  width: auto;
+  margin: 0 auto;
   border-collapse: collapse;
+  text-align: left;
 }
 
 .provenance th,
@@ -165,7 +178,7 @@ h3 {
 }
 
 .cover .claim {
-  margin-top: auto;
+  text-align: left;
 }
 
 /* --- summary -------------------------------------------------------------- */
