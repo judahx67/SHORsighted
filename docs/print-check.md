@@ -26,6 +26,13 @@ print preview in **both** Chrome and Firefox.
 - [ ] **No clipped columns.** Long paths, long signature ids, and
       260-character filenames wrap or truncate visibly, never run off the
       right margin.
+- [ ] **Evidence descriptions are readable.** The description column in
+      the evidence rows holds whole words on a line. One character per
+      line means the nested table has outgrown the cell around it, which
+      the browser does not report as an overflow.
+- [ ] **Screen matches paper.** The on-screen sheet is A4 wide, so a
+      line that fits in the browser fits in the PDF. If they disagree,
+      the preview is not a preview.
 - [ ] **Cover is its own sheet.** Page 1 ends after the claim note.
       Nothing from the summary bleeds onto it.
 - [ ] **Summary is its own sheet.** Page 2 holds the metrics, the level

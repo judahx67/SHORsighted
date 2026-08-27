@@ -30,6 +30,17 @@ APPENDIX_LIMIT = 200
 
 NAMESPACE = "shorsighted"
 
+_FILE_COLUMNS = '<colgroup><col><col style="width:20mm"><col style="width:20mm"></colgroup>'
+"""Column widths for the finding tables.
+
+A `colgroup`, not widths on the `th`s: under `table-layout: fixed` the widths
+come from the *first* row, and the first row here is a single `colspan=3`
+file-identity cell. With no colgroup the three columns split evenly, the asset
+column lands around 180px, and the nested evidence table - whose own fixed
+columns total more than that - overflows it and collapses the description to
+one character per line. A colgroup outranks the first row, so the identity
+header can span without destroying the layout underneath it."""
+
 CLAIM = (
     "Findings show evidence of presence, not proof of use. No detections means "
     "nothing was found by the detectors and signatures listed above, not that a "
@@ -290,15 +301,7 @@ class _Report:
         """
         rows = "".join(self._finding_rows(asset) for asset in self.unattributed)
         label = "Findings not linked to a file in this document"
-        return (
-            '<table class="data file"><thead>'
-            f'<tr><th colspan="3" class="file-head">'
-            f'<div class="file-head-row"><span class="file-path">{escape(label)}</span></div>'
-            "</th></tr>"
-            '<tr><th>Asset</th><th style="width:20mm">Level</th>'
-            '<th style="width:20mm">Conf.</th></tr></thead>'
-            f"<tbody>{rows}</tbody></table>"
-        )
+        return _file_table(f'<span class="file-path">{escape(label)}</span>', rows)
 
     def _file_block(self, component: Mapping[str, Any], assets: Sequence[Mapping[str, Any]]) -> str:
         """The file identity lives in `<thead>`, not in a heading above it.
@@ -311,14 +314,7 @@ class _Report:
         exactly the case where the repeat is needed.
         """
         rows = "".join(self._finding_rows(asset) for asset in assets)
-        return (
-            '<table class="data file"><thead>'
-            f'<tr><th colspan="3" class="file-head">'
-            f'<div class="file-head-row">{self._file_head(component)}</div></th></tr>'
-            '<tr><th>Asset</th><th style="width:20mm">Level</th>'
-            '<th style="width:20mm">Conf.</th></tr></thead>'
-            f"<tbody>{rows}</tbody></table>"
-        )
+        return _file_table(self._file_head(component), rows)
 
     def _file_head(self, component: Mapping[str, Any]) -> str:
         facts = [
@@ -327,8 +323,12 @@ class _Report:
         ]
         status = _prop(component, "analysis")
         badge = f'<span class="badge">{escape(_status_label(component))}</span>' if status else ""
+        # The badge is a sibling of the path, not inside it: the path carries
+        # `word-break: break-all`, so a badge inline within it is pushed onto a
+        # line of its own as soon as the path wraps, which is most of them.
         return (
-            f'<span class="file-path">{escape(_path(component))} {badge}</span>'
+            f'<span class="file-id"><span class="file-path">{escape(_path(component))}</span>'
+            f"{badge}</span>"
             f'<span class="file-facts">{escape(" · ".join(facts))}</span>'
         )
 
@@ -448,6 +448,16 @@ class _Report:
 
 
 # --- document helpers -------------------------------------------------------
+
+
+def _file_table(head: str, rows: str) -> str:
+    return (
+        f'<table class="data file">{_FILE_COLUMNS}<thead>'
+        f'<tr><th colspan="3" class="file-head">'
+        f'<div class="file-head-row">{head}</div></th></tr>'
+        "<tr><th>Asset</th><th>Level</th><th>Conf.</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table>"
+    )
 
 
 def _sheet(content: str, *, page_break: bool = False) -> str:

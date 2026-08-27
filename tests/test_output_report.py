@@ -521,3 +521,33 @@ def test_an_unrecognised_status_still_reaches_the_coverage_chart() -> None:
     assert sum(widths) == pytest.approx(100.0), "the coverage bar must cover every file"
     assert "degraded-future-thing" in rendered
     assert "not a status this version records" in rendered
+
+
+# --- layout: two shapes that silently collapse a column ----------------------
+
+
+def test_a_spanning_header_never_leaves_its_columns_undeclared(mixed_report: str) -> None:
+    """`table-layout: fixed` reads column widths from the *first* row.
+
+    The finding tables open with a `colspan=3` file-identity cell, so that row
+    declares nothing and the columns split evenly — which shrinks the asset
+    column enough that the evidence table nested inside it has no room for a
+    description, and every word breaks to one character per line. A `colgroup`
+    outranks the first row and is the only thing standing between this layout
+    and that collapse, so nothing may remove it.
+    """
+    tables = re.findall(r"<table[^>]*>(.*?)</table>", mixed_report, re.S)
+    spanning = [t for t in tables if "colspan=" in t.split("<tbody>")[0]]
+    assert spanning, "no spanning header rendered, so this test proves nothing"
+    for table in spanning:
+        assert "<colgroup>" in table, f"spanning header with undeclared columns: {table[:120]}"
+
+
+def test_the_nested_evidence_table_sizes_in_percentages() -> None:
+    """Pixel columns inside a nested table can total more than the cell holding
+    them; percentages cannot. The overflow is not visible when it happens — the
+    description column just stops being readable — so the fix has to be
+    structural rather than a set of widths that happen to fit today."""
+    css = CSS.read_text(encoding="utf-8")
+    block = css[css.index(".evidence .detector") : css.index("/* --- footer")]
+    assert "px" not in block, f"pixel widths inside the nested evidence table:\n{block}"

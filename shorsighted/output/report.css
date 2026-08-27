@@ -44,10 +44,15 @@ body {
   line-height: 1.45;
 }
 
-/* Screen only: paint sheets so the page breaks are visible before printing. */
+/* Screen only: paint sheets so the page breaks are visible before printing.
+ * A4 wide, not content-wide: with the same 12mm padding the print rules use,
+ * a 210mm sheet puts exactly the printed 186mm of content on screen. At the
+ * old 186mm the preview was 24mm narrower than the paper, so every line
+ * measurement taken from the browser was wrong about the PDF. */
 .sheet {
   background: var(--sheet);
-  max-width: 186mm;
+  width: 210mm;
+  max-width: 100%;
   margin: 0 auto;
   padding: 12mm 12mm 14mm;
 }
@@ -300,6 +305,15 @@ th.file-head {
   align-items: baseline;
 }
 
+/* `min-width: 0` so a long path shrinks this item instead of shoving the
+ * hash and architecture off the right edge of the sheet. */
+.file-id {
+  display: flex;
+  gap: 2mm;
+  align-items: baseline;
+  min-width: 0;
+}
+
 .file-path {
   font-family: var(--mono);
   font-size: 12px;
@@ -349,16 +363,20 @@ td.level.zero {
   word-break: break-word;
 }
 
+/* Percentages, never px: this table is nested inside a cell of the findings
+ * table, and fixed pixel columns wider than that cell squeeze the description
+ * to nothing rather than overflowing visibly. Percentages cannot outgrow their
+ * container, so the failure mode does not exist. */
 .evidence .detector {
-  width: 88px;
+  width: 14%;
 }
 
 .evidence .signature {
-  width: 110px;
+  width: 20%;
 }
 
 .evidence .offset {
-  width: 90px;
+  width: 17%;
   text-align: right;
 }
 
