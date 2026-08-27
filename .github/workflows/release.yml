@@ -1,0 +1,235 @@
+name: Release
+
+# The CD half (implementation handoff, slice 11). Tag `vX.Y.Z` and this runs
+# the whole gate, builds, attests, publishes to PyPI and cuts a GitHub release.
+#
+# Nothing here is a shortcut around CI: the gate and the evaluation are the
+# same workflows a pull request runs, called rather than copied, so a release
+# cannot pass a weaker check than a PR does. The evaluation is included on
+# purpose - this tool's headline claim is a measured precision figure, and
+# shipping a build whose corpus no longer reproduces that figure would publish
+# a number nobody had checked.
+#
+# Actions are pinned to commit SHAs with the version in a comment. A moving tag
+# is a mutable dependency in the supply chain of a supply-chain tool.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Build, attest and check everything; publish nothing"
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  # Never cancel a release in flight: a half-published version cannot be undone
+  # on PyPI, where a filename can be uploaded exactly once.
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Tag agrees with the package
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+
+      - name: Compare the tag with __version__
+        id: check
+        run: |
+          set -euo pipefail
+          version="$(python -c 'import shorsighted; print(shorsighted.__version__)')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "package version: $version"
+
+          if [ "${{ github.ref_type }}" != "tag" ]; then
+            echo "::notice::dispatch run, not a tag - version checks are informational"
+            exit 0
+          fi
+
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match __version__ ${version}."
+            echo "::error::pyproject reads the version from shorsighted/__init__.py, so the"
+            echo "::error::wheel would be named for one version and tagged as another."
+            exit 1
+          fi
+
+          case "$version" in
+            *dev*|*rc*|*a[0-9]*|*b[0-9]*|*+*)
+              echo "::error::${version} is a pre-release or local version."
+              echo "::error::Bump shorsighted/__init__.py before tagging a release."
+              exit 1
+              ;;
+          esac
+
+  gate:
+    name: Gate
+    # The same workflow a pull request runs. Called, not copied.
+    uses: ./.github/workflows/ci.yml
+
+  evaluation:
+    name: Evaluation
+    uses: ./.github/workflows/eval.yml
+
+  build:
+    name: Build and attest
+    needs: [version, gate, evaluation]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      # AC-8 checks the wheel installs. This checks the sdist does too, because
+      # a packaging list that forgets the signature TOML produces a wheel that
+      # works from the build tree and an sdist that detects nothing.
+      - name: Install the sdist in a clean environment and scan with it
+        run: |
+          set -euo pipefail
+          python -m venv "${RUNNER_TEMP}/from-sdist"
+          "${RUNNER_TEMP}/from-sdist/bin/pip" install --quiet dist/*.tar.gz
+          "${RUNNER_TEMP}/from-sdist/bin/shorsighted" --version
+
+          # The fixture builder is stdlib-only and synthesizes the bytes, so no
+          # binary is fetched here either (test-plan §1).
+          python - "${RUNNER_TEMP}/sample.exe" <<'PY'
+          import pathlib, sys
+          from tests.fixtures.build import SCN_CODE, SectionSpec, build_pe
+
+          pathlib.Path(sys.argv[1]).write_bytes(
+              build_pe(
+                  sections=(SectionSpec(".text", b"\x90" * 512, SCN_CODE),),
+                  imports=(("bcrypt.dll", ("BCryptEncrypt",)),),
+              )
+          )
+          PY
+
+          "${RUNNER_TEMP}/from-sdist/bin/shorsighted" "${RUNNER_TEMP}/sample.exe" > "${RUNNER_TEMP}/cbom.json"
+          python - "${RUNNER_TEMP}/cbom.json" <<'PY'
+          import json, sys
+          document = json.load(open(sys.argv[1]))
+          assert document["bomFormat"] == "CycloneDX", document.get("bomFormat")
+          assets = [c for c in document["components"] if c["type"] == "cryptographic-asset"]
+          assert assets, "an sdist install that detects nothing has lost its signature data"
+          print(f"sdist install emitted a CBOM with {len(assets)} finding(s)")
+          PY
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: "dist/*.whl,dist/*.tar.gz"
+
+      # Written after the attestation so the checksum file is not itself a
+      # subject of it.
+      - name: Checksums
+        run: cd dist && sha256sum ./*.whl ./*.tar.gz | tee SHA256SUMS
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI
+    needs: [version, build]
+    if: github.ref_type == 'tag' && !inputs.dry-run
+    runs-on: ubuntu-latest
+    # Trusted Publishing, so no API token is stored anywhere. The environment is
+    # the approval gate: configure required reviewers on it, because this is the
+    # one step in the repository that cannot be undone.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/shorsighted
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: dist
+          path: dist
+
+      - name: Drop the checksum file
+        # PyPI accepts distributions only, and would reject the upload whole.
+        run: rm -f dist/SHA256SUMS
+
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        with:
+          print-hash: true
+
+  github-release:
+    name: GitHub release
+    needs: [version, build]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: dist
+          path: dist
+
+      - name: Notes for this version, from the changelog
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # `index(...) == 1` is "starts with". Deliberately not a regex: the
+          # heading contains brackets and a dotted version, and an awk *string*
+          # does not take regex escapes - `"\\["` reaches the matcher as a
+          # character class and silently matches nothing.
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { found = 1; next }
+            found && index($0, "## [") == 1 { exit }
+            found { print }
+          ' CHANGELOG.md > "${RUNNER_TEMP}/notes.md"
+
+          if [ ! -s "${RUNNER_TEMP}/notes.md" ]; then
+            echo "::error::CHANGELOG.md has no '## [${VERSION}]' section."
+            echo "::error::A release with no notes is a release nobody can review."
+            exit 1
+          fi
+
+          {
+            echo
+            echo "### Verifying this release"
+            echo
+            echo '```'
+            echo "gh attestation verify shorsighted-${VERSION}-py3-none-any.whl --repo ${{ github.repository }}"
+            echo "sha256sum --check --ignore-missing SHA256SUMS"
+            echo '```'
+          } >> "${RUNNER_TEMP}/notes.md"
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${{ github.repository }}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file "${RUNNER_TEMP}/notes.md" \
+            --verify-tag \
+            dist/*
