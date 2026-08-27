@@ -30,6 +30,8 @@ APPENDIX_LIMIT = 200
 
 NAMESPACE = "shorsighted"
 
+TITLE = "Cryptographic Bill of Materials"
+
 _FILE_COLUMNS = '<colgroup><col><col style="width:20mm"><col style="width:20mm"></colgroup>'
 """Column widths for the finding tables.
 
@@ -53,6 +55,13 @@ _STATUS_MEANING = {
     "unsupported-managed": ".NET assemblies, not analysed in v0.1",
     "error": "Could not be parsed, listed in section 3",
 }
+
+_UNSTATED_LEVEL = "Not stated"
+"""Bucket for a finding whose document states no quantum security level.
+
+It has to be a bar like any other. Dropping it left the chart totalling less
+than the "Findings" metric printed directly above it, which is the class of
+defect this report exists in order not to have."""
 
 _LEVEL_NAMES = {
     0: "Level 0, broken",
@@ -110,18 +119,18 @@ class _Report:
     def render(self) -> str:
         body = "\n".join(
             [
-                _sheet(self._cover(), page_break=True),
+                _sheet(self._cover(), page_break=True, extra="cover"),
                 _sheet(self._summary(), page_break=True),
                 _sheet(self._body()),
             ]
         )
         css = resources.files(__package__).joinpath("report.css").read_text(encoding="utf-8")
-        title = self._scan_root() or "Evidence report"
+        title = self._scan_root() or TITLE
         return (
             "<!DOCTYPE html>\n"
             '<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-            f"<title>{escape(title)} - cryptographic bill of materials</title>\n"
+            f"<title>{escape(title)} - {escape(TITLE.lower())}</title>\n"
             f"<style>\n{css}</style>\n</head>\n<body>\n"
             f"{body}\n"
             f"{self._footer()}\n"
@@ -156,8 +165,9 @@ class _Report:
             for pair in rows
         )
         return (
-            '<p class="kind">Cryptographic bill of materials, evidence report</p>\n'
-            f'<h1 class="scan-root">{escape(self._scan_root() or PLACEHOLDER)}</h1>\n'
+            f'<h1 class="doc-title">{escape(TITLE)}</h1>\n'
+            '<p class="field-label">Directory scanned</p>'
+            f'<p class="scan-root">{escape(self._scan_root() or PLACEHOLDER)}</p>\n'
             f'<table class="provenance">{cells}</table>\n'
             f'<p class="claim">{escape(CLAIM)}</p>'
         )
@@ -187,11 +197,17 @@ class _Report:
         )
 
     def _level_chart(self) -> str:
-        counts: dict[int, int] = {}
+        """Every finding gets a bar, including the ones stating no level.
+
+        The chart therefore totals the "Findings" metric printed above it. An
+        earlier version charted only assets carrying a level, so a scan whose
+        findings were all CryptoAPI - a generic API with no algorithm, hence no
+        level - drew no chart at all beside a non-zero count.
+        """
+        counts: dict[int | None, int] = {}
         for asset in self.crypto:
             level = _level(asset)
-            if level is not None:
-                counts[level] = counts.get(level, 0) + 1
+            counts[level] = counts.get(level, 0) + 1
         if not counts:
             return ""
 
@@ -199,11 +215,11 @@ class _Report:
         # is still a visible bar rather than a hairline nobody reads.
         largest = max(counts.values())
         rows = "".join(
-            f'<tr class="level-{level}">'
-            f'<td class="level-name">{escape(_LEVEL_NAMES.get(level, f"Level {level}"))}</td>'
+            f'<tr class="{_level_class(level)}">'
+            f'<td class="level-name">{escape(_level_name(level))}</td>'
             f'<td><div class="bar" style="width:{count / largest * 100:.1f}%"></div></td>'
             f'<td class="level-count">{count}</td></tr>'
-            for level, count in sorted(counts.items())
+            for level, count in sorted(counts.items(), key=_level_order)
         )
         return (
             '<p class="chart-label">Findings by NIST quantum security level</p>\n'
@@ -460,8 +476,8 @@ def _file_table(head: str, rows: str) -> str:
     )
 
 
-def _sheet(content: str, *, page_break: bool = False) -> str:
-    classes = "sheet page-break" if page_break else "sheet"
+def _sheet(content: str, *, page_break: bool = False, extra: str = "") -> str:
+    classes = " ".join(filter(None, ["sheet", "page-break" if page_break else "", extra]))
     return f'<div class="{classes}">\n{content}\n</div>'
 
 
@@ -506,6 +522,19 @@ def _level(asset: Mapping[str, Any]) -> int | None:
     algorithm = _mapping(_mapping(asset.get("cryptoProperties")).get("algorithmProperties"))
     level = algorithm.get("nistQuantumSecurityLevel")
     return level if isinstance(level, int) and not isinstance(level, bool) else None
+
+
+def _level_name(level: int | None) -> str:
+    return _UNSTATED_LEVEL if level is None else _LEVEL_NAMES.get(level, f"Level {level}")
+
+
+def _level_class(level: int | None) -> str:
+    return "level-unknown" if level is None else f"level-{level}"
+
+
+def _level_order(item: tuple[int | None, int]) -> tuple[int, int]:
+    """Numeric levels ascending, then the unstated bucket last."""
+    return (1, 0) if item[0] is None else (0, item[0])
 
 
 def _path(component: Mapping[str, Any]) -> str:

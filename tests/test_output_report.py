@@ -97,7 +97,8 @@ def test_no_script_element_is_emitted(mixed_report: str) -> None:
 
 
 def test_cover_and_summary_are_their_own_sheets(mixed_report: str) -> None:
-    assert mixed_report.count('class="sheet page-break"') == 2
+    assert mixed_report.count('class="sheet page-break') == 2
+    assert 'class="sheet page-break cover"' in mixed_report
 
 
 def test_the_scan_root_reaches_the_cover(tmp_path: Path, signatures: SignatureSet) -> None:
@@ -253,14 +254,17 @@ def test_rendered_signature_ids_exist_in_the_signature_data(
 
 TOKENS = {
     "#ffffff",
-    "#f5f4ef",
-    "#1a1a17",
-    "#5f5e5a",
-    "#8a8983",
-    "#a32d2d",
-    "#888780",
-    "#e2e0d9",
-    "#b4b2a9",
+    "#dfe3e8",
+    "#14181d",
+    "#414a55",
+    "#6b7480",
+    "#1b3a5c",
+    "#eef2f6",
+    "#a9b4c0",
+    "#b00020",
+    "#4a6f95",
+    "#8ba6bf",
+    "#c6d3df",
 }
 
 
@@ -551,3 +555,44 @@ def test_the_nested_evidence_table_sizes_in_percentages() -> None:
     css = CSS.read_text(encoding="utf-8")
     block = css[css.index(".evidence .detector") : css.index("/* --- footer")]
     assert "px" not in block, f"pixel widths inside the nested evidence table:\n{block}"
+
+
+def test_the_level_chart_counts_every_finding(mixed_report: str) -> None:
+    """The chart totals the metric printed above it, unstated levels included.
+
+    CryptoAPI and CNG findings are a generic API, not an algorithm, so they
+    carry no quantum level at all. Charting only the assets that have one drew
+    no chart whatsoever for a scan whose findings were all imports - beside a
+    "Findings" card reading 2.
+    """
+    counts = [int(n) for n in re.findall(r'class="level-count">(\d+)<', mixed_report)]
+    assert sum(counts) == _metric(mixed_report, "Findings")
+
+
+def test_a_finding_with_no_level_is_charted_as_unstated() -> None:
+    document = {
+        "components": [
+            {"type": "cryptographic-asset", "bom-ref": "a1", "name": "CryptoAPI"},
+            {
+                "type": "cryptographic-asset",
+                "bom-ref": "a2",
+                "name": "RSA",
+                "cryptoProperties": {"algorithmProperties": {"nistQuantumSecurityLevel": 0}},
+            },
+        ]
+    }
+    rendered = report.render(json.dumps(document))
+    assert report._UNSTATED_LEVEL in rendered
+    # The unstated bucket sorts last, after every numeric level.
+    assert rendered.index("Level 0") < rendered.index(report._UNSTATED_LEVEL)
+    counts = [int(n) for n in re.findall(r'class="level-count">(\d+)<', rendered)]
+    assert counts == [1, 1]
+
+
+def test_the_cover_carries_only_the_cover(mixed_report: str) -> None:
+    """Title, what was scanned, how it was scanned, and the claim at the foot."""
+    cover = mixed_report.split('class="sheet page-break cover"')[1].split("</div>")[0]
+    assert report.TITLE in cover
+    assert "Directory scanned" in cover
+    assert report.CLAIM in cover
+    assert "Summary" not in cover

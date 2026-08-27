@@ -14,9 +14,13 @@ print preview in **both** Chrome and Firefox.
 
 ## Checklist
 
-- [ ] **Charts render.** Level bars and the coverage strip appear in
-      print preview, not blank. If blank, `print-color-adjust: exact` is
-      missing or was dropped.
+- [ ] **Charts render.** Level bars, the coverage strip, and the navy
+      table header fills appear in print preview, not blank. If blank,
+      `print-color-adjust: exact` is missing or was dropped.
+- [ ] **The level chart totals the Findings card.** Every finding gets a
+      bar, including the ones with no level stated. A chart summing to
+      less than the number printed above it is the defect this report
+      exists in order not to have.
 - [ ] **Page breaks respect findings.** No finding is separated from its
       evidence rows across a page boundary.
 - [ ] **Table headers repeat.** Asset / Level / Conf. headers appear at
@@ -33,8 +37,10 @@ print preview in **both** Chrome and Firefox.
 - [ ] **Screen matches paper.** The on-screen sheet is A4 wide, so a
       line that fits in the browser fits in the PDF. If they disagree,
       the preview is not a preview.
-- [ ] **Cover is its own sheet.** Page 1 ends after the claim note.
-      Nothing from the summary bleeds onto it.
+- [ ] **Cover is its own sheet.** Page 1 carries the title, the directory
+      scanned, the provenance table, and nothing else. The claim note sits
+      at the foot of the sheet, not directly under the table. Nothing from
+      the summary bleeds onto it.
 - [ ] **Summary is its own sheet.** Page 2 holds the metrics, the level
       chart, and coverage. Expansions never push it onto a third sheet;
       an expansion that does not fit is cut, not carried.

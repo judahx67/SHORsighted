@@ -3,24 +3,28 @@
  * Every colour in this file is a var() defined in the :root block below, and a
  * test greps for hex literals outside it. The rule exists because "just this
  * one accent" is how a frozen palette stops being frozen.
+ *
+ * The register is a compliance document, not an application: white paper, one
+ * navy accent, gridlines on all four sides of every cell, and red reserved for
+ * the single thing that is actually bad news. Nothing is tinted for warmth.
  */
 
 :root {
   --sheet: #ffffff;
-  --muted-bg: #f5f4ef;
-  --ink: #1a1a17;
-  --ink-secondary: #5f5e5a;
-  --ink-muted: #8a8983;
-  --hairline: rgba(0, 0, 0, 0.14);
-  --rule: rgba(0, 0, 0, 0.28);
-  --danger: #a32d2d;
-  --chart-neutral: #888780;
-  --cover-ok: #e2e0d9;
-  --cover-packed: #b4b2a9;
-  --cover-managed: #888780;
-  --cover-error: #5f5e5a;
+  --surround: #dfe3e8;
+  --ink: #14181d;
+  --ink-secondary: #414a55;
+  --ink-muted: #6b7480;
+  --accent: #1b3a5c;
+  --accent-tint: #eef2f6;
+  --grid: #a9b4c0;
+  --danger: #b00020;
+  --chart-1: #1b3a5c;
+  --chart-2: #4a6f95;
+  --chart-3: #8ba6bf;
+  --chart-4: #c6d3df;
 
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --sans: Arial, "Helvetica Neue", Helvetica, "Segoe UI", sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "Consolas", "DejaVu Sans Mono", monospace;
 }
 
@@ -31,7 +35,7 @@
 }
 
 html {
-  background: var(--muted-bg);
+  background: var(--surround);
 }
 
 body {
@@ -39,9 +43,9 @@ body {
   background: var(--sheet);
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 400;
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
 /* Screen only: paint sheets so the page breaks are visible before printing.
@@ -58,70 +62,101 @@ body {
 }
 
 .sheet + .sheet {
-  border-top: 0.5px solid var(--hairline);
+  border-top: 1px solid var(--grid);
 }
 
 h1,
 h2,
 h3 {
-  font-weight: 500;
+  font-weight: 700;
   margin: 0;
 }
 
 /* --- cover ---------------------------------------------------------------- */
 
-.kind {
-  font-size: 11px;
+/* The claim is pinned to the foot of the cover by `margin-top: auto`, which
+ * needs the sheet to be a full page tall rather than as tall as its content. */
+.cover {
+  display: flex;
+  flex-direction: column;
+  min-height: 297mm;
+}
+
+.doc-title {
+  font-size: 26px;
+  letter-spacing: -0.2px;
+  color: var(--accent);
+  padding-bottom: 4mm;
+  border-bottom: 2px solid var(--accent);
+}
+
+.field-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
   color: var(--ink-muted);
+  margin: 10mm 0 1.5mm;
 }
 
 .scan-root {
   font-family: var(--mono);
-  font-size: 20px;
-  font-weight: 500;
-  margin: 2mm 0 6mm;
+  font-size: 15px;
+  font-weight: 400;
+  margin: 0 0 10mm;
   word-break: break-all;
 }
 
 .provenance {
   width: 100%;
   border-collapse: collapse;
-  border-top: 0.5px solid var(--rule);
-  border-bottom: 0.5px solid var(--rule);
 }
 
 .provenance th,
 .provenance td {
+  border: 1px solid var(--grid);
   text-align: left;
   vertical-align: top;
-  padding: 1.6mm 3mm 1.6mm 0;
+  padding: 1.8mm 2.5mm;
   font-weight: 400;
 }
 
 .provenance th {
+  background: var(--accent-tint);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
   color: var(--ink-secondary);
-  width: 24mm;
+  width: 26mm;
   white-space: nowrap;
 }
 
 .provenance td {
   font-family: var(--mono);
-  width: 45mm;
+  width: 41mm;
   word-break: break-all;
 }
 
 .claim {
-  margin: 6mm 0 0;
-  padding: 3mm 0 3mm 4mm;
-  border-left: 2px solid var(--rule);
+  margin: 10mm 0 0;
+  padding: 3mm 4mm;
+  border: 1px solid var(--grid);
+  border-left: 3px solid var(--accent);
   color: var(--ink-secondary);
-  max-width: 130mm;
+}
+
+.cover .claim {
+  margin-top: auto;
 }
 
 /* --- summary -------------------------------------------------------------- */
 
 h2 {
-  font-size: 14px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--accent);
+  border-bottom: 1px solid var(--accent);
+  padding-bottom: 1.2mm;
   margin: 0 0 3mm;
 }
 
@@ -129,26 +164,31 @@ section + section {
   margin-top: 8mm;
 }
 
+/* Negative margin so adjacent cards share one gridline instead of doubling it,
+ * the way a bordered table does. */
 .metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 3mm;
 }
 
 .metric {
-  background: var(--muted-bg);
-  padding: 3mm;
+  border: 1px solid var(--grid);
+  margin-left: -1px;
+  padding: 2.5mm 3mm;
 }
 
 .metric-label {
-  font-size: 11px;
-  color: var(--ink-secondary);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink-muted);
 }
 
 .metric-value {
   font-family: var(--mono);
-  font-size: 19px;
-  font-weight: 500;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
 }
 
 .metric-value.danger {
@@ -156,7 +196,10 @@ section + section {
 }
 
 .chart-label {
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   color: var(--ink-muted);
   margin: 6mm 0 2mm;
 }
@@ -167,27 +210,28 @@ section + section {
   border-collapse: collapse;
 }
 
-.levels th,
 .levels td {
-  padding: 0.8mm 0;
+  border: 1px solid var(--grid);
+  padding: 1.2mm 2.5mm;
   font-weight: 400;
   text-align: left;
+  vertical-align: middle;
 }
 
 .levels .level-name {
-  width: 40mm;
+  width: 44mm;
   white-space: nowrap;
 }
 
 .levels .level-count {
-  width: 16mm;
+  width: 18mm;
   text-align: right;
   font-family: var(--mono);
 }
 
 .bar {
-  height: 7px;
-  background: var(--chart-neutral);
+  height: 8px;
+  background: var(--chart-1);
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
 }
@@ -195,18 +239,23 @@ section + section {
 .level-0 .level-name,
 .level-0 .level-count {
   color: var(--danger);
+  font-weight: 700;
 }
 
 .level-0 .bar {
   background: var(--danger);
 }
 
+.level-unknown .bar {
+  background: var(--ink-muted);
+}
+
 /* Coverage: one stacked band over every scanned file. */
 .coverage {
   display: flex;
   width: 100%;
-  height: 16px;
-  border: 0.5px solid var(--hairline);
+  height: 18px;
+  border: 1px solid var(--grid);
   margin-bottom: 3mm;
   overflow: hidden;
 }
@@ -220,27 +269,27 @@ section + section {
 
 .swatch {
   display: inline-block;
-  width: 9px;
-  height: 9px;
-  border: 0.5px solid var(--hairline);
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--grid);
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
 }
 
 .fill-ok {
-  background: var(--cover-ok);
+  background: var(--chart-4);
 }
 .fill-degraded-packed {
-  background: var(--cover-packed);
+  background: var(--chart-3);
 }
 .fill-unsupported-managed {
-  background: var(--cover-managed);
+  background: var(--chart-2);
 }
 .fill-error {
-  background: var(--cover-error);
+  background: var(--danger);
 }
 .fill-other {
-  background: var(--chart-neutral);
+  background: var(--ink-muted);
 }
 
 /* --- tables --------------------------------------------------------------- */
@@ -251,20 +300,26 @@ table.data {
   table-layout: fixed;
 }
 
-table.data th {
-  text-align: left;
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--ink-secondary);
-  border-bottom: 0.5px solid var(--rule);
-  padding: 1.2mm 3mm 1.2mm 0;
-}
-
+/* Gridlines on all four sides of every cell. A rule that stops where the last
+ * word stops reads as a list; an audit table reads as a table. */
+table.data th,
 table.data td {
-  padding: 1.2mm 3mm 1.2mm 0;
-  border-bottom: 0.5px solid var(--hairline);
+  border: 1px solid var(--grid);
+  padding: 1.4mm 2.5mm;
+  text-align: left;
   vertical-align: top;
   word-break: break-word;
+}
+
+table.data thead th {
+  background: var(--accent);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+  color: var(--sheet);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 td.num,
@@ -277,7 +332,7 @@ td.num {
 }
 
 .note {
-  color: var(--ink-muted);
+  color: var(--ink-secondary);
   margin-top: 2mm;
 }
 
@@ -291,8 +346,9 @@ table.file {
  * A div header cannot do this, and a file's findings are exactly the thing
  * that runs past a page boundary. */
 th.file-head {
-  border-bottom: 0.5px solid var(--rule);
-  padding: 0 0 1.2mm;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
 }
 
 /* The flex lives on a div inside the cell, never on the `th` itself: a th with
@@ -317,21 +373,22 @@ th.file-head {
 .file-path {
   font-family: var(--mono);
   font-size: 12px;
+  font-weight: 400;
   word-break: break-all;
 }
 
 .file-facts {
   font-family: var(--mono);
-  color: var(--ink-muted);
+  font-weight: 400;
   white-space: nowrap;
 }
 
 .badge {
   display: inline-block;
-  border: 0.5px solid var(--rule);
-  border-radius: 2px;
+  border: 1px solid var(--sheet);
   padding: 0 1.4mm;
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 400;
   white-space: nowrap;
 }
 
@@ -340,12 +397,13 @@ th.file-head {
 }
 
 .asset-name {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 td.level.zero {
   color: var(--danger);
+  font-weight: 700;
 }
 
 .evidence {
@@ -353,12 +411,14 @@ td.level.zero {
   border-collapse: collapse;
   table-layout: fixed;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ink-secondary);
+  margin-top: 1.5mm;
 }
 
 .evidence td {
-  padding: 0.4mm 3mm 0.4mm 0;
+  border: 1px solid var(--grid);
+  padding: 0.8mm 1.5mm;
   vertical-align: top;
   word-break: break-word;
 }
@@ -388,9 +448,9 @@ td.level.zero {
 
 .footer {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 9.5px;
   color: var(--ink-muted);
-  border-top: 0.5px solid var(--hairline);
+  border-top: 1px solid var(--grid);
   padding-top: 1.5mm;
   margin-top: 8mm;
 }
@@ -408,10 +468,17 @@ td.level.zero {
   }
 
   .sheet {
+    width: auto;
     max-width: none;
     margin: 0;
     padding: 0;
     border-top: 0;
+  }
+
+  /* The page box, not the sheet: in print the 12/14mm lives in @page, so the
+   * cover's content column is that much shorter than a full A4. */
+  .cover {
+    min-height: 271mm;
   }
 
   .page-break {
