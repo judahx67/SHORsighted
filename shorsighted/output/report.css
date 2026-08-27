@@ -23,6 +23,7 @@
   --chart-2: #4a6f95;
   --chart-3: #8ba6bf;
   --chart-4: #c6d3df;
+  --chart-5: #dbe4ec;
 
   --sans: Arial, "Helvetica Neue", Helvetica, "Segoe UI", sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "Consolas", "DejaVu Sans Mono", monospace;
@@ -173,7 +174,6 @@ h3 {
   margin: 6mm 0 0;
   padding: 2mm 2.5mm;
   border: 1px solid var(--grid);
-  border-left: 3px solid var(--accent);
   color: var(--ink-secondary);
 }
 
@@ -217,36 +217,42 @@ table.data.metrics td.danger {
   margin: 3mm 0 1mm;
 }
 
-/* Level chart: label, bar, exact count. The count is never only in the bar. */
-.levels {
-  width: 100%;
-  border-collapse: collapse;
+/* Pie left, exact counts right. The chart is never the only source of a
+ * number, and the legend swatch beside each count is what makes a slice
+ * identifiable without relying on its colour. */
+.chart-row {
+  display: flex;
+  gap: 4mm;
+  align-items: flex-start;
 }
 
-.levels td {
-  border: 1px solid var(--grid);
-  padding: 0.6mm 1.5mm;
-  font-weight: 400;
-  text-align: left;
-  vertical-align: middle;
+.chart-row > table {
+  flex: 1;
+  min-width: 0;
+}
+
+svg.pie {
+  flex: 0 0 30mm;
+  width: 30mm;
+  height: 30mm;
+}
+
+svg.pie path,
+svg.pie circle {
+  stroke: var(--sheet);
+  stroke-width: 1.5;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
 }
 
 .levels .level-name {
-  width: 44mm;
   white-space: nowrap;
 }
 
 .levels .level-count {
-  width: 18mm;
+  width: 14mm;
   text-align: right;
   font-family: var(--mono);
-}
-
-.bar {
-  height: 6px;
-  background: var(--chart-1);
-  print-color-adjust: exact;
-  -webkit-print-color-adjust: exact;
 }
 
 .level-0 .level-name,
@@ -255,29 +261,8 @@ table.data.metrics td.danger {
   font-weight: 700;
 }
 
-.level-0 .bar {
-  background: var(--danger);
-}
-
-.level-unknown .bar {
-  background: var(--ink-muted);
-}
-
-/* Coverage: one stacked band over every scanned file. */
-.coverage {
-  display: flex;
-  width: 100%;
-  height: 10px;
-  border: 1px solid var(--grid);
-  margin-bottom: 1.5mm;
-  overflow: hidden;
-}
-
-.coverage span {
-  display: block;
-  height: 100%;
-  print-color-adjust: exact;
-  -webkit-print-color-adjust: exact;
+td.swatch-cell {
+  width: 7mm;
 }
 
 .swatch {
@@ -289,20 +274,56 @@ table.data.metrics td.danger {
   -webkit-print-color-adjust: exact;
 }
 
+/* `background` paints the legend swatch, `fill` paints the pie slice. One
+ * rule for both, so the two can never disagree about what a colour means. */
 .fill-ok {
   background: var(--chart-4);
+  fill: var(--chart-4);
 }
 .fill-degraded-packed {
   background: var(--chart-3);
+  fill: var(--chart-3);
 }
 .fill-unsupported-managed {
   background: var(--chart-2);
+  fill: var(--chart-2);
 }
 .fill-error {
   background: var(--danger);
+  fill: var(--danger);
 }
 .fill-other {
   background: var(--ink-muted);
+  fill: var(--ink-muted);
+}
+
+.fill-level-0 {
+  background: var(--danger);
+  fill: var(--danger);
+}
+.fill-level-1 {
+  background: var(--chart-1);
+  fill: var(--chart-1);
+}
+.fill-level-2 {
+  background: var(--chart-2);
+  fill: var(--chart-2);
+}
+.fill-level-3 {
+  background: var(--chart-3);
+  fill: var(--chart-3);
+}
+.fill-level-4 {
+  background: var(--chart-4);
+  fill: var(--chart-4);
+}
+.fill-level-5 {
+  background: var(--chart-5);
+  fill: var(--chart-5);
+}
+.fill-level-6 {
+  background: var(--accent-tint);
+  fill: var(--accent-tint);
 }
 
 /* --- tables --------------------------------------------------------------- */

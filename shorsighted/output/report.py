@@ -16,6 +16,7 @@ math would need script, and would break the byte-exact golden file.
 
 import hashlib
 import json
+import math
 from collections.abc import Iterator, Mapping, Sequence
 from html import escape
 from importlib import resources
@@ -219,19 +220,22 @@ class _Report:
         if not counts:
             return ""
 
-        # Scaled against the largest count, not the total, so a category of one
-        # is still a visible bar rather than a hairline nobody reads.
-        largest = max(counts.values())
+        ordered = sorted(counts.items(), key=_level_order)
         rows = "".join(
             f'<tr class="{_level_class(level)}">'
+            f'<td class="swatch-cell"><span class="swatch {_level_fill(level)}"></span></td>'
             f'<td class="level-name">{escape(_level_name(level))}</td>'
-            f'<td><div class="bar" style="width:{count / largest * 100:.1f}%"></div></td>'
             f'<td class="level-count">{count}</td></tr>'
-            for level, count in sorted(counts.items(), key=_level_order)
+            for level, count in ordered
+        )
+        pie = _pie(
+            [(_level_fill(level), count) for level, count in ordered],
+            "Findings by NIST quantum security level",
         )
         return (
             '<p class="chart-label">Findings by NIST quantum security level</p>\n'
-            f'<table class="levels">{rows}</table>'
+            f'<div class="chart-row">{pie}'
+            f'<table class="data levels">{rows}</table></div>'
         )
 
     def _coverage(self) -> str:
@@ -249,14 +253,12 @@ class _Report:
         # exactly where coverage is least understood.
         extra = sorted({s for s in self.statuses if s is not None and s not in _STATUS_MEANING})
         counts = {status: self.statuses.count(status) for status in (*_STATUS_MEANING, *extra)}
-        total = len(self.files) or 1
-        segments = "".join(
-            f'<span class="{_fill(status)}" style="width:{count / total * 100:.2f}%"></span>'
-            for status, count in counts.items()
-            if count
+        pie = _pie(
+            [(_fill(status), count) for status, count in counts.items()],
+            "Analysis coverage by status",
         )
         rows = "".join(
-            f'<tr><td><span class="swatch {_fill(status)}"></span></td>'
+            f'<tr><td class="swatch-cell"><span class="swatch {_fill(status)}"></span></td>'
             f'<td>{escape(status)}</td><td class="num">{count}</td>'
             f"<td>{escape(_STATUS_MEANING.get(status, 'not a status this version records'))}"
             "</td></tr>"
@@ -264,10 +266,10 @@ class _Report:
         )
         return (
             "<section><h2>Analysis coverage</h2>\n"
-            f'<div class="coverage">{segments}</div>\n'
-            '<table class="data"><thead><tr><th style="width:8mm"></th><th>Status</th>'
-            '<th style="width:16mm">Files</th><th>Meaning for this report</th></tr></thead>'
-            f"<tbody>{rows}</tbody></table>\n"
+            f'<div class="chart-row">{pie}'
+            '<table class="data"><thead><tr><th style="width:7mm"></th><th>Status</th>'
+            '<th style="width:14mm">Files</th><th>Meaning for this report</th></tr></thead>'
+            f"<tbody>{rows}</tbody></table></div>\n"
             f"{self._skipped_note()}</section>"
         )
 
@@ -556,6 +558,58 @@ def _level(asset: Mapping[str, Any]) -> int | None:
     algorithm = _mapping(_mapping(asset.get("cryptoProperties")).get("algorithmProperties"))
     level = algorithm.get("nistQuantumSecurityLevel")
     return level if isinstance(level, int) and not isinstance(level, bool) else None
+
+
+def _pie(slices: Sequence[tuple[str, int]], label: str) -> str:
+    """A pie as inert SVG. No script, no image, no external anything.
+
+    Slice geometry is computed from running totals rather than by accumulating
+    each sweep, so the last slice closes on the first and rounding cannot leave
+    a hairline wedge of blank paper that reads as a category nobody counted.
+
+    The fill classes are the same ones the legend swatches use, so a slice and
+    its row cannot come to disagree about which colour means what.
+    """
+    drawn = [(fill, count) for fill, count in slices if count > 0]
+    total = sum(count for _, count in drawn)
+    if not total:
+        return ""
+
+    radius = 50.0
+    if len(drawn) == 1:
+        # A single slice is the whole circle, and an arc from a point back to
+        # itself draws nothing at all.
+        body = f'<circle cx="0" cy="0" r="{radius}" class="{drawn[0][0]}"/>'
+    else:
+        paths = []
+        seen = 0
+        for fill, count in drawn:
+            start = _pie_point(seen, total, radius)
+            seen += count
+            end = _pie_point(seen, total, radius)
+            large = 1 if count * 2 > total else 0
+            paths.append(
+                f'<path class="{fill}" d="M0 0L{start}A{radius} {radius} 0 {large} 1 {end}Z"/>'
+            )
+        body = "".join(paths)
+    return (
+        f'<svg class="pie" viewBox="-52 -52 104 104" role="img" aria-label="{escape(label)}">'
+        f"{body}</svg>"
+    )
+
+
+def _pie_point(seen: int, total: int, radius: float) -> str:
+    """Position on the circle after `seen` of `total`, clockwise from twelve."""
+    angle = 2 * math.pi * seen / total - math.pi / 2
+    return f"{radius * math.cos(angle):.2f} {radius * math.sin(angle):.2f}"
+
+
+def _level_fill(level: int | None) -> str:
+    """Darkest at level 0, lightening as the level rises, so the weight of the
+    chart sits where the migration work is."""
+    if level is None:
+        return "fill-other"
+    return f"fill-level-{level}" if 0 <= level <= 6 else "fill-other"
 
 
 def _level_name(level: int | None) -> str:

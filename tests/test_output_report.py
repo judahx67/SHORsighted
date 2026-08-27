@@ -208,9 +208,13 @@ def test_the_level_chart_totals_the_assets_that_have_a_level() -> None:
     assert _metric(rendered, "Quantum-vulnerable") == 2
 
 
-def test_a_lone_category_still_gets_a_visible_bar() -> None:
-    """Scaled against the largest count, not the total — otherwise one finding
-    among two hundred is a bar nobody can see."""
+def test_every_charted_category_reaches_the_pie() -> None:
+    """One finding among forty is a slice, not a rounding error.
+
+    The failure this guards is a category that is counted in the table and
+    missing from the chart, which makes the picture and the numbers beside it
+    describe different scans.
+    """
     document = {
         "components": [
             {
@@ -222,9 +226,12 @@ def test_a_lone_category_still_gets_a_visible_bar() -> None:
             for i, level in enumerate([0] + [1] * 40)
         ]
     }
-    widths = [float(w) for w in re.findall(r"width:([\d.]+)%", report.render(json.dumps(document)))]
-    assert max(widths) == pytest.approx(100.0)
-    assert min(widths) == pytest.approx(2.5)
+    rendered = report.render(json.dumps(document))
+    svg = rendered.split("<svg")[1].split("</svg>")[0]
+    assert set(re.findall(r'<path class="(fill-[a-z0-9-]+)"', svg)) == {
+        "fill-level-0",
+        "fill-level-1",
+    }
 
 
 # --- UI-5: vocabulary is verbatim ------------------------------------------
@@ -265,6 +272,7 @@ TOKENS = {
     "#4a6f95",
     "#8ba6bf",
     "#c6d3df",
+    "#dbe4ec",
 }
 
 
@@ -522,11 +530,8 @@ def test_an_unrecognised_status_still_reaches_the_coverage_chart() -> None:
         ]
     }
     rendered = report.render(json.dumps(document))
-    widths = [
-        float(w)
-        for w in re.findall(r'class="(?:swatch )?fill-[a-z-]+" style="width:([\d.]+)%', rendered)
-    ]
-    assert sum(widths) == pytest.approx(100.0), "the coverage bar must cover every file"
+    svg = rendered.split('aria-label="Analysis coverage')[1].split("</svg>")[0]
+    assert set(re.findall(r'<path class="(fill-[a-z0-9-]+)"', svg)) == {"fill-ok", "fill-other"}
     assert "degraded-future-thing" in rendered
     assert "not a status this version records" in rendered
 
@@ -673,3 +678,38 @@ def test_the_cover_block_centres_and_the_claim_stays_at_the_foot() -> None:
     rule = css.split(".cover-block {")[1].split("}")[0]
     assert "flex: 1" in rule
     assert "justify-content: center" in rule
+
+
+def test_a_single_category_is_drawn_as_a_whole_circle() -> None:
+    """An arc from a point back to itself draws nothing.
+
+    A scan where every file analysed cleanly is the common case, so the chart
+    that renders it as blank paper would be the one most people see.
+    """
+    document = {
+        "components": [
+            {
+                "type": "file",
+                "bom-ref": f"f{i}",
+                "name": f"{i}.exe",
+                "properties": [{"name": "shorsighted:analysis", "value": "ok"}],
+            }
+            for i in range(3)
+        ]
+    }
+    svg = report.render(json.dumps(document)).split("<svg")[1].split("</svg>")[0]
+    assert '<circle cx="0" cy="0"' in svg
+    assert "<path" not in svg
+
+
+def test_the_pie_carries_no_number_of_its_own(mixed_report: str) -> None:
+    """Design §5: the chart is never the only source of a count. Every slice
+    has a legend row beside it with the exact figure, and the swatch in that
+    row is what identifies the slice when the page is printed in grayscale."""
+    for svg in re.findall(r"<svg.*?</svg>", mixed_report, re.S):
+        fills = set(re.findall(r'class="(fill-[a-z0-9-]+)"', svg))
+        assert fills, "a chart with no slices at all"
+        for fill in fills:
+            assert f'<span class="swatch {fill}">' in mixed_report, (
+                f"{fill} is a slice with no legend row, so it is colour-only"
+            )

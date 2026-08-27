@@ -14,13 +14,18 @@ print preview in **both** Chrome and Firefox.
 
 ## Checklist
 
-- [ ] **Charts render.** Level bars, the coverage strip, and the navy
-      table header fills appear in print preview, not blank. If blank,
-      `print-color-adjust: exact` is missing or was dropped.
-- [ ] **The level chart totals the Findings card.** Every finding gets a
-      bar, including the ones with no level stated. A chart summing to
+- [ ] **Charts render.** Both pies and the navy table header fills
+      appear in print preview, not blank. If blank,
+      `print-color-adjust: exact` is missing or was dropped. SVG fills
+      are subject to the same rule as backgrounds.
+- [ ] **The level pie totals the Findings card.** Every finding gets a
+      slice, including the ones with no level stated. A chart covering
       less than the number printed above it is the defect this report
       exists in order not to have.
+- [ ] **Every slice has a legend row.** Each pie sits beside a table
+      whose rows carry the same swatch, the category name and the exact
+      count. A slice with no row is a category identifiable by colour
+      alone, which fails in grayscale.
 - [ ] **Page breaks respect findings.** No finding is separated from its
       evidence rows across a page boundary.
 - [ ] **Table headers repeat.** Asset / Level / Conf. headers appear at
