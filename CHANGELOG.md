@@ -23,41 +23,87 @@ release.
 
 ## [Unreleased]
 
-### Added
+Nothing yet.
 
-- Printable evidence report: `--format html` on a scan, or `shorsighted render
-  <cbom.json>` to render a CycloneDX document produced by any tool. Prints to
-  PDF from the browser, no new runtime dependency.
-- `shorsighted:scan-root`, `shorsighted:detectors-run` and
-  `shorsighted:min-confidence` in the CBOM metadata. Without them a scan run
-  with `--detectors imports --min-confidence 0.9` and a full scan produce
-  identical-looking emptiness, which is the confusion FR-13 exists to prevent.
-- `--appendix-limit`, capping how many clean filenames the report lists
-  individually. Counts stay exact either way.
-- Release pipeline: tag-triggered build, provenance attestation, PyPI Trusted
-  Publishing behind an approval environment, and a GitHub release carrying
-  checksums.
+## [0.1.0] - 2026-08-28
 
-### Changed
-
-- All GitHub Actions are pinned to commit SHAs rather than moving tags.
-
-## [0.1.0] - unreleased
-
-The first release. Nothing is published yet; this section exists so the release
-workflow has something to read the day a `v0.1.0` tag is cut.
+First release. Scans compiled Windows PE binaries and emits a CycloneDX 1.6
+cryptographic bill of materials, for the case existing CBOM tooling cannot
+reach: a binary you did not build and have no source for.
 
 ### Added
 
-- Three detectors — imports, constants, heuristics — over statically parsed PE
-  files. No sample is ever executed or emulated.
-- CycloneDX 1.6 CBOM output, validated against the vendored official schema in
-  CI on every emitted document shape.
-- Detection knowledge lives entirely in `signatures/data/*.toml`. A new
-  algorithm is a data contribution with no Python change.
-- Confidence values calibrated as measured per-class precision over a corpus
-  built from pinned sources, published in `eval/report.md`.
-- `--format text` for humans, `--reproducible` for byte-identical output.
+- **Three detectors**, each a pure function over a parsed PE.
+  - `imports` reads the import table. CNG and CryptoAPI imports are generic —
+    `BCryptEncrypt` proves "uses CNG", not "uses AES" — so an import is
+    corroborated against UTF-16LE algorithm strings before it claims a
+    specific algorithm.
+  - `constants` finds algorithm tables in the bytes: AES S-boxes, SHA round
+    constants, and the rest of `signatures/data/`. This is what sees
+    statically linked cryptography, which is invisible to import analysis and
+    to every existing CBOM tool.
+  - `heuristics` finds embedded DER certificates and key material, and reports
+    that it exists and where — never its bytes.
+- **CycloneDX 1.6 output.** Every document shape CI can produce is validated
+  against the vendored official schema, so conformance is a gate rather than a
+  claim. `--reproducible` omits the serial number and timestamp for
+  byte-identical output.
+- **Printable evidence report.** `--format html` on a scan, or `shorsighted
+  render <cbom.json>` to render a CycloneDX document from any tool. Prints to
+  PDF from the browser, so it adds no runtime dependency and no rendering
+  engine. Cover, summary with charts, then per-finding evidence carrying the
+  detector, signature id and file offset that produced it.
+- **Detection knowledge lives in `signatures/data/*.toml`, never in Python.**
+  A new algorithm is a data contribution with no code change, and CI enforces
+  that every signature ships with a fixture exercising it.
+- **Calibrated confidence.** Values are measured per-class precision over a
+  corpus compiled from pinned sources, published in
+  [`eval/report.md`](eval/report.md) and re-checked in CI, so a signature
+  change cannot quietly invalidate the numbers the tool prints.
+- **Scan metadata in the CBOM**: `shorsighted:scan-root`,
+  `shorsighted:detectors-run`, `shorsighted:min-confidence`. Without them a
+  scan run with `--detectors imports --min-confidence 0.9` and a full scan
+  produce identical-looking emptiness.
+- `--format text` for humans, `--detectors` to select, `--min-confidence` to
+  filter, `--timeout` per file, `--appendix-limit` for the report's clean-file
+  list.
+- **Release pipeline.** Tag-triggered build behind the same gate a pull request
+  runs plus the corpus evaluation, signed build provenance attestation, and
+  checksums on the GitHub release.
+
+### Installing
+
+**Not on PyPI yet** — `pip install shorsighted` will not find this. Take the
+wheel from the release assets below:
+
+```console
+$ pip install ./shorsighted-0.1.0-py3-none-any.whl
+$ shorsighted --version
+```
+
+Verify it first if you like; every artifact carries a signed build provenance
+attestation, and `SHA256SUMS` is attached:
+
+```console
+$ gh attestation verify shorsighted-0.1.0-py3-none-any.whl --repo judahx67/SHORsighted
+$ sha256sum --check --ignore-missing SHA256SUMS
+```
+
+The pipeline can publish to PyPI, and does so through Trusted Publishing behind
+an approval environment, but that is switched off for this release.
+
+### Known limits
+
+Read [`LIMITATIONS.md`](LIMITATIONS.md) before trusting a clean report. In
+short: packed binaries give reduced coverage, .NET assemblies are not analysed
+in v0.1, the high-entropy heuristic measured 0.038 precision and ships
+disabled, and the corpus is built rather than collected — it shows that real
+compilers emit recognisable tables, not what a shipping OpenSSL build looks
+like.
+
+Findings are evidence of presence, never proof of use. No findings means none
+were detected, with caveats attached — never that a binary is free of
+cryptography.
 
 [Unreleased]: https://github.com/judahx67/SHORsighted/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/judahx67/SHORsighted/releases/tag/v0.1.0
