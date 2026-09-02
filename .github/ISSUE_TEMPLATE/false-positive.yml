@@ -1,0 +1,67 @@
+name: False positive
+description: SHORsighted reported cryptography that is not there.
+labels: [false-positive]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The most valuable report this project receives. Precision is a published
+        number, and a false positive means it is wrong — which we cannot fix
+        without knowing which bytes fooled us.
+
+        A reported false positive that can become a corpus sample is one we
+        learn from permanently. One that cannot is one we can only apologise
+        for, so please say whether the source is public.
+
+        **Never attach the binary.** The offset and a hexdump around it are what
+        we need.
+
+  - type: input
+    id: signature
+    attributes:
+      label: Which signature
+      description: >
+        The signature id from the finding's evidence — `aes-sbox-fwd`,
+        `p256-b`, and so on. `--format text` prints it.
+    validations:
+      required: true
+
+  - type: input
+    id: offset
+    attributes:
+      label: File offset of the match
+      description: As printed in the evidence, e.g. `0x1a4c0`.
+    validations:
+      required: true
+
+  - type: textarea
+    id: hexdump
+    attributes:
+      label: Hexdump around the offset
+      description: >
+        64 bytes before and after is plenty. On Windows:
+        `certutil -f -encodehex <file> dump.txt`, or use any hex editor.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it is not cryptography
+      description: >
+        What those bytes actually are, if you know — a lookup table, a debug
+        section, float constants, a coincidence. A guess is fine; say it is one.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: reproducible
+    attributes:
+      label: Can we reproduce it?
+      options:
+        - The binary is public and I can link to it
+        - It builds from public source and I can name the source and flags
+        - Neither — the file is not something I can share
+    validations:
+      required: true

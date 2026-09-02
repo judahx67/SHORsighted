@@ -234,3 +234,30 @@ def test_confidence_comes_from_the_signature_set() -> None:
 
 def test_scanning_an_empty_signature_set_is_not_an_error() -> None:
     assert DETECTOR.scan(load_bytes(image_with(SBOX)), SignatureSet()) == []
+
+
+# --- every shipped signature is exercised (AC-6) ---------------------------
+
+_REPORTABLE = [s for s in load_signatures().constants if not s.suppresses]
+
+
+@pytest.mark.parametrize("shipped", _REPORTABLE, ids=lambda s: s.id)
+def test_every_shipped_constant_is_reachable(
+    shipped: ConstantSignature, signatures: SignatureSet
+) -> None:
+    """A signature that can never fire is worse than a missing one: it reads as
+    coverage and detects nothing. The schema already rejects an anchor longer
+    than its pattern, but nothing else proves the datum survives the whole path
+    — every expanded layout, and the suppressor pass, which is regional and
+    could veto a real table whose bytes overlap a confusable's.
+
+    This is the check behind the contributor promise: add a table to
+    `signatures/data/constants/`, and CI answers whether it is detectable
+    before anyone reviews the hex.
+    """
+    for layout, pattern in enumerate(shipped.patterns):
+        image = image_with(FILLER + pattern + FILLER)
+        matched = {
+            e.signature_id for f in DETECTOR.scan(load_bytes(image), signatures) for e in f.evidence
+        }
+        assert shipped.id in matched, f"layout {layout} of {shipped.id} matches nothing"

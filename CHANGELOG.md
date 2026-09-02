@@ -23,7 +23,24 @@ release.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **Issue and pull request templates.** The bug and false-positive forms ask for
+  the offset, the hexdump and the hash, and refuse the binary itself — a report
+  we cannot turn into a corpus sample is one we cannot learn from, and a
+  repository full of crypto-bearing executables is its own problem.
+- **`signatures.yml`, the contributor fast path.** A pull request touching only
+  `signatures/data/**` gets schema validation, confidence-class agreement, the
+  derivation checks and reachability in about a minute, instead of waiting on
+  the eight-cell matrix.
+- **`test_every_shipped_constant_is_reachable`.** Synthesizes a binary per
+  shipped constant pattern, per expanded layout, and fails if one matches
+  nothing. The schema already rejects an anchor longer than its pattern; this
+  catches what it cannot see — a suppressor that vetoes a real table, or a
+  layout expansion that produces bytes no build contains. A signature that can
+  never fire reads as coverage and detects nothing.
+- **`ROADMAP.md`**, the public half of the plan: what v0.2 through v1.0 are for
+  and the measurable gate on each.
 
 ## [0.1.0] - 2026-08-28
 
