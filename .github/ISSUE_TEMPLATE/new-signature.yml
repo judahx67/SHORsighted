@@ -1,0 +1,42 @@
+name: New signature request
+description: An algorithm SHORsighted should detect and does not.
+labels: [signature]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Signatures are data, not code — `shorsighted/signatures/data/*.toml`.
+        If you can fill this in, you can open the pull request yourself, and
+        CONTRIBUTING.md walks the whole path. Filing it here is also fine; it
+        just waits longer.
+
+  - type: input
+    id: algorithm
+    attributes:
+      label: Algorithm
+      placeholder: "SM4, ML-KEM-768, Camellia..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: constants
+    attributes:
+      label: What is detectable about it
+      description: >
+        A table, an S-box, round constants, an import, a wide-string algorithm
+        name. Cite where the value comes from — a spec section, an RFC, a page
+        number. We do not take a constant on trust; a wrong one produces a
+        signature that matches nothing and a test that proves it matches nothing.
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: Something to test against
+      description: >
+        An open-source implementation we can compile with pinned sources, ideally.
+        Corpus samples are built from source with `zig cc` — we never commit a
+        binary someone handed us.
+    validations:
+      required: true

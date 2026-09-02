@@ -39,7 +39,7 @@ Along the way the corpus found something worth repeating: **Zig's runtime puts C
 debug build**, which none of the sample programs asked for. The tool reports it, correctly. That is the case
 for binary-level CBOMs in one line — your source does not know what your toolchain linked in.
 
-## Status: MVP, slice 10 of 12 🌱
+## Status: v0.1.0 🌱
 
 ```console
 $ shorsighted app.exe                       # CycloneDX 1.6 JSON (the contract)
@@ -69,6 +69,9 @@ as integers. The high-entropy heuristic measured 0.038 precision and **ships dis
 
 Requirements, design, and the build order live outside the repo. What ships here is the code, the corpus, the
 evaluation, and [`LIMITATIONS.md`](LIMITATIONS.md).
+
+**Where it goes next:** [`ROADMAP.md`](ROADMAP.md). The headline for v0.2 is seeing through .NET assemblies,
+which today are flagged and not much else.
 
 ## What it promises
 

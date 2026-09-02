@@ -1,0 +1,61 @@
+name: Bug report
+description: The tool crashed, hung, or did something other than what it says it does.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never attach the binary.** Not zipped, not password-protected, not
+        "just this once". A repository full of crypto-bearing executables trips
+        antivirus on contributors' machines, and we cannot promise you the
+        rights to redistribute someone else's software.
+
+        The `--format text` output and a hash are almost always enough. If they
+        are not, we will ask you for a specific byte range.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The command and its output
+      description: >
+        The full command line, and the `--format text` output or traceback.
+        Redact paths if you need to.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: hash
+    attributes:
+      label: SHA-256 of the file
+      description: >
+        From the scan output, or `certutil -hashfile <file> SHA256`. It lets us
+        tell two reports about the same binary apart — and if it is a public
+        redistributable, it lets us find it ourselves.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `shorsighted --version`, plus your OS and Python version.
+      placeholder: "0.1.0, Windows 11, Python 3.12"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Before you submit
+      options:
+        - label: I have not attached the binary or any key material.
+          required: true

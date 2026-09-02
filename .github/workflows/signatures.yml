@@ -1,0 +1,56 @@
+name: Signatures
+
+# The contributor fast path (test-plan §7). A data-only pull request touches no
+# Python, so it does not need the eight-cell matrix to get an answer — it needs
+# to know whether the TOML loads, whether the class has a confidence value, and
+# whether the pattern is detectable at all. That is about a minute.
+#
+# It does not replace ci.yml, which still runs on the same pull request. It
+# lands first, and it is the one whose failure a contributor can act on without
+# reading a coverage report.
+on:
+  pull_request:
+    paths:
+      - "shorsighted/signatures/data/**"
+      - ".github/workflows/signatures.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: signatures-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  signatures:
+    name: Data loads and is detectable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+
+      # Schema validation, class-to-confidence agreement, the derivation checks
+      # that catch a mistyped constant, and the reachability check that catches
+      # a signature which loads but can never fire.
+      - name: Validate
+        run: >
+          pytest -q --no-header -p no:cacheprovider
+          tests/test_signatures.py
+          tests/test_derived_constants.py
+          tests/test_detector_constants.py
+
+      # ponytail: the eval is the other half of a signature change, and it is
+      # not here on purpose — it needs a C toolchain and several minutes.
+      # eval.yml is already path-filtered onto the same files and runs in
+      # parallel with this. This job is the fast answer, not the whole answer.
+      - name: Remind about calibration
+        run: echo "::notice::Signature data changed. The Evaluation workflow must pass too, and a signature that moves precision needs eval/report.md and confidence.toml regenerated in this PR (CONTRIBUTING.md)."

@@ -26,11 +26,19 @@ byte pattern inside a `.py` file is a bug (FR-9).
    a spec section, a page number, an RFC. The next person needs to check your
    work without trusting you.
 2. Add a fixture that exercises it in `tests/fixtures/build.py`, and a test that
-   asserts it is detected. CI fails a signature with no fixture (AC-6).
+   asserts it is detected. A constant signature gets this for free —
+   `test_every_shipped_constant_is_reachable` synthesizes a binary per shipped
+   pattern and fails if one can never fire, which is what a transcription error
+   in a table looks like from the outside.
 3. Run `python -m eval.run` and commit the regenerated `eval/report.md`. New
    signatures move measured precision, and confidence values *are* measured
    precision — a signature that ships without recalibration makes every
    confidence number in the tool a little bit false.
+
+A pull request touching only `signatures/data/**` gets the **Signatures**
+workflow, which answers in about a minute — schema, confidence classes,
+derivation checks, reachability — while the full matrix and the corpus
+evaluation run behind it.
 
 [`tests/fixtures/sm4-contribution.toml`](tests/fixtures/sm4-contribution.toml)
 is a worked example: a complete algorithm added as data only.
@@ -51,8 +59,8 @@ nothing and a test that proves it matches nothing.
 - **Never extract key material.** Report that it exists and where. A CBOM
   carrying key bytes is a leak (non-goal 9).
 - **The runtime dependency budget is `pefile` and nothing else.** Adding one
-  needs a written justification in `02design.md`'s trade-off table first, and
-  it is an escalation rather than a pull request.
+  needs a written justification in the design record's trade-off table first,
+  and that makes it an escalation rather than a pull request — open an issue.
 - **Detectors never import each other, and never import `output/`.**
   Corroboration belongs in `core/merge.py`. The evaluation reports per-detector
   precision and recall, and merging inside a detector destroys that measurement

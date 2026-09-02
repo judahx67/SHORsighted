@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/judahx67/SHORsighted/security/advisories/new
+    about: A crash or hang on hostile input is in scope. Report it privately here, not as an issue — see SECURITY.md.
